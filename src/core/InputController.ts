@@ -67,6 +67,9 @@ export class InputController {
     if (event.code === 'Space' || event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
       this.dashDown = false;
     }
+    if (event.code === 'Space') {
+      this.queued.place += 1;
+    }
   };
 
   private readonly onStickDown = (event: PointerEvent) => {
@@ -236,7 +239,6 @@ export class InputController {
     if (code === 'ArrowDown' || code === 'KeyS') this.queued.moveY += 1;
     if (code === 'KeyE') this.queued.rotateClockwise += 1;
     if (code === 'KeyQ') this.queued.rotateCounterClockwise += 1;
-    if (code === 'Space') this.queued.place += 1;
     if (code === 'Tab') this.queued.nextPiece += 1;
     if (code === 'Enter') this.queued.rush += 1;
     if (code === 'KeyR') this.queued.restart += 1;

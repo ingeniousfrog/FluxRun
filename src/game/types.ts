@@ -54,7 +54,7 @@ export type RouteStats = {
   readonly complete: boolean;
 };
 
-export type Phase = 'build' | 'flow' | 'paused' | 'failed' | 'cleared';
+export type Phase = 'build' | 'flow' | 'rush' | 'paused' | 'failed' | 'cleared';
 
 export type ViewMode = '2d' | '2.5d';
 

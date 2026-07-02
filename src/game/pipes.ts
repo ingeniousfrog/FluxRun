@@ -154,15 +154,21 @@ export function placePiece(board: Board, piece: Piece, cursor: BoardPoint): { bo
   return { board: setCells(board, placed), placed };
 }
 
-export function replacePiece(board: Board, piece: Piece, cursor: BoardPoint): { board: Board; placed: ReadonlyArray<PlacedCell> } {
+export function replacePiece(
+  board: Board,
+  piece: Piece,
+  cursor: BoardPoint,
+  flooded?: ReadonlySet<string>,
+): { board: Board; placed: ReadonlyArray<PlacedCell> } {
   const placed = getPieceCells(piece, cursor);
   if (!placed.every(({ x, y }) => isInside(board, x, y))) {
     return { board, placed: [] };
   }
   const cells = board.cells.slice();
   for (const placedCell of placed) {
+    const key = `${placedCell.x},${placedCell.y}`;
     const existing = getCell(board, placedCell.x, placedCell.y);
-    if (existing?.locked) return { board, placed: [] };
+    if (existing?.locked || flooded?.has(key)) return { board, placed: [] };
     cells[toIndex(board, placedCell.x, placedCell.y)] = placedCell.cell;
   }
   return { board: { ...board, cells }, placed };

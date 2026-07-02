@@ -3,17 +3,18 @@ import type { MaterialLibrary } from '../assets/MaterialLibrary';
 import { BOARD_COLS, BOARD_ROWS, CELL_SIZE } from '../game/constants';
 import {
   boardToWorld,
-  canPlacePiece,
   connectorsFor,
   getCell,
   getPieceCells,
-  replacePiece,
 } from '../game/pipes';
 import type { Board, BoardPoint, Direction, Piece, PipeCell } from '../game/types';
+import { disposeObject3D } from '../utils/dispose';
 
 export class BoardView {
   readonly group = new THREE.Group();
 
+  private readonly staticLayer = new THREE.Group();
+  private readonly dynamicLayer = new THREE.Group();
   private readonly cellBase = new THREE.BoxGeometry(CELL_SIZE * 0.92, 0.1, CELL_SIZE * 0.92);
   private readonly connectorHorizontal = new THREE.BoxGeometry(CELL_SIZE * 0.54, 0.16, CELL_SIZE * 0.16);
   private readonly connectorVertical = new THREE.BoxGeometry(CELL_SIZE * 0.16, 0.16, CELL_SIZE * 0.54);
@@ -26,9 +27,15 @@ export class BoardView {
   private readonly routePlate = new THREE.PlaneGeometry(CELL_SIZE * 0.78, CELL_SIZE * 0.78);
   private readonly gridLineHorizontal = new THREE.BoxGeometry(CELL_SIZE * BOARD_COLS, 0.012, 0.012);
   private readonly gridLineVertical = new THREE.BoxGeometry(0.012, 0.012, CELL_SIZE * BOARD_ROWS);
+  private readonly groundGeometry = new THREE.PlaneGeometry(BOARD_COLS * CELL_SIZE + 0.34, BOARD_ROWS * CELL_SIZE + 0.34);
 
   constructor(private readonly materials: MaterialLibrary) {
     this.group.name = 'boardView';
+    this.staticLayer.name = 'boardStatic';
+    this.dynamicLayer.name = 'boardDynamic';
+    this.group.add(this.staticLayer);
+    this.group.add(this.dynamicLayer);
+    this.buildStaticLayer();
   }
 
   sync(
@@ -38,26 +45,28 @@ export class BoardView {
     route: ReadonlyArray<BoardPoint>,
     previewRoute: ReadonlyArray<BoardPoint>,
     phase: string,
+    canPlace: boolean,
   ): void {
-    this.group.clear();
-    this.group.add(this.createGround());
-    this.group.add(this.createGrid());
-    this.group.add(this.createRouteLayer(previewRoute, false));
-    this.group.add(this.createRouteLayer(route, true));
+    this.clearDynamicLayer();
+    this.dynamicLayer.add(this.createRouteLayer(previewRoute, false));
+    this.dynamicLayer.add(this.createRouteLayer(route, true));
 
     for (let y = 0; y < board.rows; y += 1) {
       for (let x = 0; x < board.cols; x += 1) {
         const cell = getCell(board, x, y);
-        if (cell) this.group.add(this.createPipeCell({ x, y }, cell, route.some((point) => point.x === x && point.y === y)));
+        if (cell) {
+          this.dynamicLayer.add(this.createPipeCell({ x, y }, cell, route.some((point) => point.x === x && point.y === y)));
+        }
       }
     }
 
     if (phase === 'build' || phase === 'flow') {
-      this.group.add(this.createGhost(board, activePiece, cursor));
+      this.dynamicLayer.add(this.createGhost(activePiece, cursor, canPlace));
     }
   }
 
   dispose(): void {
+    this.clearDynamicLayer();
     this.cellBase.dispose();
     this.connectorHorizontal.dispose();
     this.connectorVertical.dispose();
@@ -70,18 +79,25 @@ export class BoardView {
     this.routePlate.dispose();
     this.gridLineHorizontal.dispose();
     this.gridLineVertical.dispose();
+    this.groundGeometry.dispose();
   }
 
-  private createGround(): THREE.Mesh {
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(BOARD_COLS * CELL_SIZE + 0.34, BOARD_ROWS * CELL_SIZE + 0.34),
-      this.materials.ground,
-    );
+  private buildStaticLayer(): void {
+    const ground = new THREE.Mesh(this.groundGeometry, this.materials.ground);
     ground.name = 'circuitGround';
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.012;
     ground.receiveShadow = true;
-    return ground;
+    this.staticLayer.add(ground);
+    this.staticLayer.add(this.createGrid());
+  }
+
+  private clearDynamicLayer(): void {
+    while (this.dynamicLayer.children.length > 0) {
+      const child = this.dynamicLayer.children[0];
+      this.dynamicLayer.remove(child);
+      disposeObject3D(child);
+    }
   }
 
   private createGrid(): THREE.Group {
@@ -206,10 +222,9 @@ export class BoardView {
     return connector;
   }
 
-  private createGhost(board: Board, activePiece: Piece, cursor: BoardPoint): THREE.Group {
+  private createGhost(activePiece: Piece, cursor: BoardPoint, canPlace: boolean): THREE.Group {
     const ghost = new THREE.Group();
     ghost.name = 'activePieceGhost';
-    const canPlace = canPlacePiece(board, activePiece, cursor) || replacePiece(board, activePiece, cursor).placed.length > 0;
     const material = canPlace ? this.materials.ghost : this.materials.blockedGhost;
 
     for (const placed of getPieceCells(activePiece, cursor)) {

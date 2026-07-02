@@ -7,12 +7,14 @@ import { createRenderer, resizeRenderer } from '../core/Renderer';
 import { AudioSystem } from '../systems/AudioSystem';
 import { BoardView } from '../systems/BoardView';
 import { CameraRig } from '../systems/CameraRig';
+import { CombatSystem } from '../systems/CombatSystem';
 import { DebugTools, type DebugTuning } from '../systems/DebugTools';
+import { FlowSystem } from '../systems/FlowSystem';
 import { Hud } from '../systems/Hud';
+import { RushSystem } from '../systems/RushSystem';
 import { VfxSystem } from '../systems/VfxSystem';
 import {
   BUILD_REPEAT_SECONDS,
-  FLOW_CELLS_PER_SECOND,
   TARGET_PIPE_LENGTH,
 } from './constants';
 import {
@@ -20,6 +22,7 @@ import {
   clampCursor,
   createInitialBoard,
   createPiece,
+  findEnergyRoute,
   getCell,
   getPieceCells,
   placePiece,
@@ -28,14 +31,14 @@ import {
   rotatePiece,
   traceFlow,
 } from './pipes';
-import type { Board, BoardPoint, FlowTrace, Phase, Piece, Relic, ViewMode } from './types';
+import type { Board, BoardPoint, Phase, Piece, Relic, RouteStats, ViewMode } from './types';
 
 type PhaseBeforePause = Exclude<Phase, 'paused'>;
 
 const RULE_TIPS: ReadonlyArray<Relic> = [
   { id: 'queue', name: 'Pipe queue', short: 'Current pipe is placed first', value: 0 },
   { id: 'replace', name: 'Replace', short: 'Unflooded pipes can be replaced', value: 0 },
-  { id: 'target', name: 'Goal', short: 'Reach drain after target length', value: 0 },
+  { id: 'energy', name: 'Energy loop', short: 'Color chains and boosters raise rush power', value: 0 },
 ];
 
 export class Game {
@@ -45,6 +48,9 @@ export class Game {
   private readonly materials = new MaterialLibrary();
   private readonly boardView = new BoardView(this.materials);
   private readonly vfx = new VfxSystem();
+  private readonly flow = new FlowSystem();
+  private readonly rush = new RushSystem(this.materials);
+  private readonly combat = new CombatSystem(this.materials);
   private readonly input: InputController;
   private readonly audio = new AudioSystem();
   private readonly hud = new Hud();
@@ -66,6 +72,7 @@ export class Game {
 
   private readonly debugTools: DebugTools;
   private readonly movement = new THREE.Vector2();
+  private readonly strafeInput = new THREE.Vector2();
 
   private board: Board = createInitialBoard();
   private pipeQueue: Piece[] = Array.from({ length: 6 }, (_, index) => createPiece(index));
@@ -74,9 +81,7 @@ export class Game {
   private phase: Phase = 'build';
   private phaseBeforePause: PhaseBeforePause = 'build';
   private viewMode: ViewMode = '2d';
-  private trace: FlowTrace = traceFlow(this.board);
-  private flowedPath: BoardPoint[] = [];
-  private flowProgress = 0;
+  private routeStats: RouteStats = findEnergyRoute(this.board);
   private frame = 0;
   private elapsed = 0;
   private buildRepeat = 0;
@@ -102,7 +107,7 @@ export class Game {
 
     this.createScene();
     this.cameraRig.setMode(this.viewMode);
-    this.refreshFlowTrace();
+    this.refreshRouteStats();
     this.refreshBoardView();
     this.cameraRig.snapTo(new THREE.Vector3(0, 0, 0));
     resizeRenderer(this.renderer, this.camera, this.tuning.maxDpr);
@@ -119,6 +124,7 @@ export class Game {
     this.audio.dispose();
     this.debugTools.dispose();
     this.boardView.dispose();
+    this.combat.dispose();
     this.vfx.dispose();
     this.materials.dispose();
     this.renderer.dispose();
@@ -149,11 +155,19 @@ export class Game {
       this.updateFlow(delta);
     }
 
-    if (this.phase === 'failed' || this.phase === 'cleared') {
-      this.cameraRig.update(delta, new THREE.Vector3(0, 0, 0), this.tuning.cameraLag * 1.4);
-    } else {
-      this.cameraRig.update(delta, new THREE.Vector3(0, 0, 0), this.tuning.cameraLag * 2);
+    if (this.phase === 'rush') {
+      this.updateRush(delta);
     }
+
+    const cameraTarget = this.phase === 'rush'
+      ? this.rush.getCameraTarget()
+      : new THREE.Vector3(0, 0, 0);
+    const cameraLag = this.phase === 'failed' || this.phase === 'cleared'
+      ? this.tuning.cameraLag * 1.4
+      : this.phase === 'rush'
+        ? this.tuning.cameraLag
+        : this.tuning.cameraLag * 2;
+    this.cameraRig.update(delta, cameraTarget, cameraLag);
 
     this.vfx.update(delta);
     this.updateHud();
@@ -189,6 +203,8 @@ export class Game {
 
     this.scene.add(createWorldKit(this.materials));
     this.scene.add(this.boardView.group);
+    this.scene.add(this.rush.tank.group);
+    this.scene.add(this.combat.group);
     this.scene.add(this.vfx.group);
   }
 
@@ -201,15 +217,15 @@ export class Game {
     if (this.input.consumeViewToggle()) {
       this.viewMode = this.viewMode === '2d' ? '2.5d' : '2d';
       this.cameraRig.setMode(this.viewMode);
-      this.cameraRig.snapTo(new THREE.Vector3(0, 0, 0));
+      this.cameraRig.snapTo(this.phase === 'rush' ? this.rush.getCameraTarget() : new THREE.Vector3(0, 0, 0));
       this.message = this.viewMode === '2d' ? '2D TOP VIEW' : '2.5D ANGLED VIEW';
     }
 
     if (this.input.consumePause()) {
       if (this.phase === 'paused') {
         this.phase = this.phaseBeforePause;
-        if (this.phase === 'flow') this.audio.startAmbience();
-        this.message = this.phase === 'flow' ? 'FLOW RESUMED' : 'BUILD RESUMED';
+        if (this.phase === 'flow' || this.phase === 'rush') this.audio.startAmbience();
+        this.message = this.phase === 'rush' ? 'RUSH RESUMED' : this.phase === 'flow' ? 'FLOW RESUMED' : 'BUILD RESUMED';
       } else {
         this.phaseBeforePause = this.phase as PhaseBeforePause;
         this.phase = 'paused';
@@ -252,7 +268,11 @@ export class Game {
       this.refreshBoardView();
     }
 
-    if (this.input.consumePlace()) {
+    if (this.input.consumePlace() && this.phase === 'build') {
+      this.placeCurrentPipe();
+    }
+
+    if (this.input.consumePlace() && this.phase === 'flow' && !this.input.isDashHeld()) {
       this.placeCurrentPipe();
     }
 
@@ -274,8 +294,9 @@ export class Game {
     }
 
     const existing = getPieceCells(this.currentPiece, this.cursor).some(({ x, y }) => Boolean(getCell(this.board, x, y)));
+    const flooded = this.getFloodedSet();
     const placement = existing
-      ? replacePiece(this.board, this.currentPiece, this.cursor)
+      ? replacePiece(this.board, this.currentPiece, this.cursor, flooded)
       : placePiece(this.board, this.currentPiece, this.cursor);
     if (!placement.placed.length) {
       this.message = 'PIPE LOCKED';
@@ -284,17 +305,28 @@ export class Game {
       return;
     }
 
-    this.board = resolveMatches(placement.board).board;
-    this.score += existing ? -25 : 5;
-    this.message = existing ? 'REPLACED -25' : 'PIPE PLACED';
+    const matchResult = resolveMatches(placement.board);
+    this.board = matchResult.board;
+    if (matchResult.upgraded > 0) {
+      this.score += matchResult.upgraded * 20;
+      this.message = `CHAIN +${matchResult.upgraded}`;
+      this.hud.flashStatus('combo');
+      this.audio.pickup(matchResult.upgraded);
+    } else {
+      this.score += existing ? -25 : 5;
+      this.message = existing ? 'REPLACED -25' : 'PIPE PLACED';
+      this.hud.flashStatus(existing ? 'hit' : 'place');
+    }
     this.audio.place();
     for (const placed of placement.placed) {
       this.vfx.spawnRing(boardToWorld(placed, 0.34), existing ? '#ffbd4a' : '#42d9ff');
     }
     this.advancePipeQueue();
-    this.refreshFlowTrace();
+    this.refreshRouteStats();
+    if (this.phase === 'flow') {
+      this.flow.refreshTrace(this.board);
+    }
     this.refreshBoardView();
-    this.hud.flashStatus(existing ? 'hit' : 'place');
   }
 
   private skipCurrentPipe(): void {
@@ -312,7 +344,7 @@ export class Game {
       return;
     }
 
-    this.refreshFlowTrace();
+    this.refreshRouteStats();
     const blocker = this.getFlowStartBlocker();
     if (blocker) {
       this.message = blocker;
@@ -323,75 +355,127 @@ export class Game {
     }
 
     if (this.phase !== 'flow') {
+      const trace = traceFlow(this.board);
       this.phase = 'flow';
-      this.flowProgress = 0;
-      this.flowedPath = [];
+      this.flow.startFlow(trace);
       this.message = 'WATER FLOWING';
       this.audio.rush();
+      this.audio.startAmbience();
       this.hud.flashStatus('rush');
       this.refreshBoardView();
     }
   }
 
   private updateFlow(delta: number): void {
-    this.refreshFlowTrace();
-    const currentCell = this.trace.path[Math.floor(this.flowProgress)];
-    const currentPipe = currentCell ? getCell(this.board, currentCell.x, currentCell.y) : null;
-    const pipeSpeed = currentPipe?.kind === 'reservoir' ? FLOW_CELLS_PER_SECOND * 0.45 : FLOW_CELLS_PER_SECOND;
-    const manualPressure = this.input.isDashHeld() ? 1.8 : 1;
-    this.flowProgress += delta * pipeSpeed * manualPressure;
+    const result = this.flow.update(delta, this.board, this.input.isDashHeld(), TARGET_PIPE_LENGTH);
 
-    const flowIndex = Math.min(Math.floor(this.flowProgress), Math.max(0, this.trace.path.length - 1));
-    const nextFlowed = this.trace.path.slice(0, flowIndex + 1);
-    if (nextFlowed.length > this.flowedPath.length) {
-      const newCells = nextFlowed.slice(this.flowedPath.length);
-      this.score += newCells.length * 15;
-      this.audio.pickup(newCells.length);
-      for (const point of newCells) {
-        this.vfx.spawnRing(boardToWorld(point, 0.38), '#74e7ff');
+    if (result.kind === 'flowing') {
+      if (result.newCells.length > 0) {
+        this.score += result.newCells.length * 15;
+        this.audio.pickup(result.newCells.length);
+        for (const point of result.newCells) {
+          this.vfx.spawnRing(boardToWorld(point, 0.38), '#74e7ff');
+        }
       }
-    }
-    this.flowedPath = [...nextFlowed];
-
-    const reachedEndOfTrace = this.flowProgress >= this.trace.path.length - 0.04;
-    if (!reachedEndOfTrace) {
       this.refreshBoardView();
       return;
     }
 
-    if (this.trace.status === 'drain') {
-      if (this.flowedPath.length >= TARGET_PIPE_LENGTH) {
-        this.clearBoard();
-      } else {
-        this.failBoard('TOO SHORT');
-      }
+    if (result.kind === 'rush_ready') {
+      this.startRush();
+      return;
+    }
+
+    if (result.kind === 'failed') {
+      this.failBoard(result.reason);
       return;
     }
 
     this.leaks -= 1;
-    this.message = this.trace.status === 'blocked' ? 'WRONG CONNECTOR' : 'PIPE LEAK';
+    this.message = result.reason;
     this.audio.fail();
     this.hud.flashStatus('hit');
     if (this.leaks <= 0) {
       this.failBoard(this.message);
     } else {
-      this.flowProgress = Math.max(0, this.trace.path.length - 1.35);
+      this.flow.onLeakSurvived();
     }
     this.refreshBoardView();
   }
 
+  private startRush(): void {
+    const route = this.flow.sealedRoute.length > 0 ? this.flow.sealedRoute : this.routeStats.route;
+    this.phase = 'rush';
+    this.rush.start(route);
+    this.combat.start(Math.max(1, this.leaks), route);
+    this.message = 'TANK RUSH';
+    this.audio.rush();
+    this.hud.flashStatus('rush');
+    this.refreshBoardView();
+  }
+
+  private updateRush(delta: number): void {
+    const strafe = this.input.readMovement(this.strafeInput);
+    this.rush.update(
+      delta,
+      this.board,
+      new THREE.Vector2(strafe.x, 0),
+      this.input.isDashHeld(),
+      this.tuning,
+      this.routeStats.multiplier,
+    );
+
+    this.combat.update(
+      delta,
+      this.elapsed,
+      this.rush.getTankPosition(),
+      this.rush.route,
+      this.rush.routeProgress,
+      this.tuning,
+      this.routeStats,
+      (killScore) => {
+        this.score += killScore;
+        this.hud.flashStatus('combo');
+        this.audio.pickup(1);
+      },
+      () => {
+        this.audio.hit();
+        this.hud.flashStatus('hit');
+      },
+    );
+
+    if (this.rush.reachedDrain) {
+      this.clearBoard();
+      return;
+    }
+
+    if (this.combat.health <= 0) {
+      this.failBoard('HULL DESTROYED');
+    }
+  }
+
   private clearBoard(): void {
     this.phase = 'cleared';
-    this.score += 500 + Math.max(0, this.flowedPath.length - TARGET_PIPE_LENGTH) * 35 + this.leaks * 75;
+    const energyBonus = Math.round(this.routeStats.energy * this.routeStats.multiplier);
+    this.score += 500 + energyBonus + Math.max(0, this.flow.flowedPath.length - TARGET_PIPE_LENGTH) * 35 + this.combat.health * 75;
     this.message = 'DRAIN REACHED';
     this.audio.cleared();
-    this.vfx.spawnRing(boardToWorld(this.flowedPath[this.flowedPath.length - 1] ?? { x: 0, y: 0 }, 0.42), '#9cf15f');
+    this.audio.stopAmbience();
+    const endPoint = this.rush.route[this.rush.route.length - 1]
+      ?? this.flow.flowedPath[this.flow.flowedPath.length - 1]
+      ?? { x: 0, y: 0 };
+    this.vfx.spawnRing(boardToWorld(endPoint, 0.42), '#9cf15f');
+    this.rush.reset();
+    this.combat.reset();
   }
 
   private failBoard(reason: string): void {
     this.phase = 'failed';
     this.message = reason;
     this.audio.fail();
+    this.audio.stopAmbience();
+    this.rush.reset();
+    this.combat.reset();
   }
 
   private resetBoard(): void {
@@ -400,14 +484,16 @@ export class Game {
     this.pieceSequence = 6;
     this.cursor = { x: 1, y: 5 };
     this.phase = 'build';
-    this.flowedPath = [];
-    this.flowProgress = 0;
+    this.flow.reset();
+    this.rush.reset();
+    this.combat.reset();
     this.score = 0;
     this.leaks = 3;
     this.message = 'BUILD, THEN OPEN VALVE';
     this.audio.stopAmbience();
-    this.refreshFlowTrace();
+    this.refreshRouteStats();
     this.refreshBoardView();
+    this.cameraRig.snapTo(new THREE.Vector3(0, 0, 0));
   }
 
   private advancePipeQueue(): void {
@@ -415,58 +501,87 @@ export class Game {
     this.pieceSequence += 1;
   }
 
+  private getFloodedSet(): ReadonlySet<string> {
+    return new Set(this.flow.flowedPath.map((point) => `${point.x},${point.y}`));
+  }
+
   private canPlaceOrReplaceCurrent(): boolean {
     const cells = getPieceCells(this.currentPiece, this.cursor);
     return cells.every(({ x, y }) => {
       const cell = getCell(this.board, x, y);
-      const flooded = this.isFlooded({ x, y });
+      const flooded = this.flow.isFlooded({ x, y });
+      if (this.phase === 'flow' && flooded) return false;
+      if (this.phase === 'flow' && cell && !flooded && !this.flow.isAheadOfFront({ x, y })) {
+        return false;
+      }
       return !cell || (!cell.locked && !flooded);
     });
   }
 
-  private isFlooded(point: BoardPoint): boolean {
-    return this.flowedPath.some((flowed) => flowed.x === point.x && flowed.y === point.y);
-  }
-
   private get plannedRouteLength(): number {
-    return this.trace.status === 'drain' ? this.trace.path.length : Math.max(0, this.trace.path.length - 1);
+    const trace = this.phase === 'flow' ? this.flow.trace : traceFlow(this.board);
+    return trace.status === 'drain' ? trace.path.length : Math.max(0, trace.path.length - 1);
   }
 
   private getFlowStartBlocker(): string | null {
-    if (this.trace.status !== 'drain') return 'CONNECT TO DRAIN FIRST';
-    const missingPipes = TARGET_PIPE_LENGTH - this.trace.path.length;
+    const trace = traceFlow(this.board);
+    if (trace.status !== 'drain') return 'CONNECT TO DRAIN FIRST';
+    const missingPipes = TARGET_PIPE_LENGTH - trace.path.length;
     if (missingPipes > 0) return `NEED ${missingPipes} MORE PIPES`;
     return null;
   }
 
-  private refreshFlowTrace(): void {
-    this.trace = traceFlow(this.board);
+  private refreshRouteStats(): void {
+    this.routeStats = findEnergyRoute(this.board);
   }
 
   private refreshBoardView(): void {
-    const previewPath = this.phase === 'flow' ? this.trace.path : this.trace.path;
-    this.boardView.sync(this.board, this.currentPiece, this.cursor, this.flowedPath, previewPath, this.phase);
-    this.updateHud();
+    const flowed = this.phase === 'build'
+      ? []
+      : this.phase === 'rush'
+        ? this.rush.route.slice(0, Math.floor(this.rush.routeProgress) + 1)
+        : this.flow.flowedPath;
+    const preview = this.phase === 'build'
+      ? this.routeStats.route
+      : this.flow.trace.path;
+    this.boardView.sync(
+      this.board,
+      this.currentPiece,
+      this.cursor,
+      flowed,
+      preview,
+      this.phase,
+      this.canPlaceOrReplaceCurrent(),
+    );
   }
 
   private updateHud(): void {
     const phaseMessage: Record<Phase, string> = {
       build: this.message,
       flow: this.message,
+      rush: this.message,
       paused: 'PAUSED',
       failed: 'FAILED / RESTART',
       cleared: 'CLEARED / RESTART',
     };
     const flowBlocker = this.getFlowStartBlocker();
+    const flowed = this.phase === 'build'
+      ? this.plannedRouteLength
+      : this.phase === 'rush'
+        ? Math.min(TARGET_PIPE_LENGTH, Math.floor(this.rush.routeProgress) + 1)
+        : this.flow.flowedPath.length;
 
     this.hud.update({
       phase: this.phase,
       viewMode: this.viewMode,
-      flowed: this.phase === 'build' ? this.plannedRouteLength : this.flowedPath.length,
+      flowed,
       targetLength: TARGET_PIPE_LENGTH,
       flowReady: !flowBlocker,
       score: this.score,
       leaks: this.leaks,
+      health: this.combat.health,
+      energy: this.routeStats.energy,
+      multiplier: this.routeStats.multiplier,
       currentPipe: this.canPlaceOrReplaceCurrent() ? this.currentPiece.name : `${this.currentPiece.name} BLOCKED`,
       nextPipes: this.pipeQueue.slice(1, 6).map((piece) => piece.name),
       canPlacePiece: this.canPlaceOrReplaceCurrent(),
@@ -479,29 +594,39 @@ export class Game {
 
   private publishDiagnostics(): void {
     const info = this.renderer.info;
+    const playerPosition = this.phase === 'rush'
+      ? {
+          x: this.rush.tank.position.x,
+          y: this.rush.tank.position.y,
+          z: this.rush.tank.position.z,
+        }
+      : this.flow.getFlowHeadWorld();
+
     window.__THREE_GAME_DIAGNOSTICS__ = {
       frame: this.frame,
       elapsed: this.elapsed,
       phase: this.phase,
       score: this.score,
-      routeLength: this.phase === 'build' ? this.plannedRouteLength : this.flowedPath.length,
-      routeEnergy: this.getFlowStartBlocker() ? 0 : 1,
-      multiplier: this.viewMode === '2d' ? 2 : 2.5,
-      health: this.leaks,
-      enemies: 0,
-      projectiles: 0,
+      routeLength: this.phase === 'build'
+        ? this.plannedRouteLength
+        : this.phase === 'rush'
+          ? Math.floor(this.rush.routeProgress) + 1
+          : this.flow.flowedPath.length,
+      routeEnergy: this.routeStats.energy,
+      multiplier: this.routeStats.multiplier,
+      health: this.phase === 'rush' ? this.combat.health : this.leaks,
+      enemies: this.combat.enemyCount,
+      projectiles: this.combat.projectileCount,
       board: {
         occupied: this.board.cells.filter(Boolean).length,
         cols: this.board.cols,
         rows: this.board.rows,
       },
       player: {
-        position: {
-          x: boardToWorld(this.flowedPath[this.flowedPath.length - 1] ?? { x: 0, y: 0 }).x,
-          y: 0.16,
-          z: boardToWorld(this.flowedPath[this.flowedPath.length - 1] ?? { x: 0, y: 0 }).z,
-        },
-        speed: this.phase === 'flow' ? FLOW_CELLS_PER_SECOND * (this.input.isDashHeld() ? 1.8 : 1) : 0,
+        position: playerPosition,
+        speed: this.phase === 'rush'
+          ? this.tuning.rushSpeed * (this.input.isDashHeld() ? this.tuning.boostMultiplier : 1)
+          : 0,
       },
       renderer: {
         calls: info.render.calls,

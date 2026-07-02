@@ -3,7 +3,7 @@
 interface ThreeGameDiagnostics {
   frame: number;
   elapsed: number;
-  phase: 'build' | 'flow' | 'paused' | 'failed' | 'cleared';
+  phase: 'build' | 'flow' | 'rush' | 'paused' | 'failed' | 'cleared';
   score: number;
   routeLength: number;
   routeEnergy: number;

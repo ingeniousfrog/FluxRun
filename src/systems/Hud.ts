@@ -8,6 +8,9 @@ export type HudState = {
   readonly flowReady: boolean;
   readonly score: number;
   readonly leaks: number;
+  readonly health: number;
+  readonly energy: number;
+  readonly multiplier: number;
   readonly currentPipe: string;
   readonly nextPipes: ReadonlyArray<string>;
   readonly canPlacePiece: boolean;
@@ -35,16 +38,32 @@ export class Hud {
   private readonly viewButton = this.getElement('#view-action');
 
   update(state: HudState): void {
-    this.phaseValue.textContent = state.phase === 'flow' ? 'FLOW' : state.phase.toUpperCase();
+    const phaseLabel: Record<Phase, string> = {
+      build: 'BUILD',
+      flow: 'FLOW',
+      rush: 'RUSH',
+      paused: 'PAUSED',
+      failed: 'FAILED',
+      cleared: 'CLEARED',
+    };
+    this.phaseValue.textContent = phaseLabel[state.phase];
     this.routeValue.textContent = `${state.flowed.toString().padStart(2, '0')}/${state.targetLength}`;
-    this.energyValue.textContent = state.phase === 'flow' ? 'OPEN' : state.flowReady ? 'READY' : 'CLOSED';
-    this.comboValue.textContent = state.viewMode.toUpperCase();
-    this.healthValue.textContent = String(state.leaks);
+    this.energyValue.textContent = state.phase === 'flow'
+      ? 'OPEN'
+      : state.phase === 'rush'
+        ? String(state.energy)
+        : state.flowReady
+          ? String(state.energy)
+          : 'CLOSED';
+    this.comboValue.textContent = `x${state.multiplier.toFixed(2)}`;
+    this.healthValue.textContent = String(state.phase === 'rush' ? state.health : state.leaks);
     this.scoreValue.textContent = String(state.score).padStart(6, '0');
     this.pieceValue.textContent = state.currentPipe;
-    this.pieceHelp.textContent = state.phase === 'flow'
-      ? 'Keep laying pipes ahead of the water.'
-      : 'PLACE lays this pipe. NEXT skips to another.';
+    this.pieceHelp.textContent = state.phase === 'rush'
+      ? 'Strafe with WASD. FAST boosts speed. Auto-fire chains kills.'
+      : state.phase === 'flow'
+        ? 'Keep laying pipes ahead of the water. Space/FAST speeds pressure.'
+        : 'PLACE lays this pipe. NEXT skips to another.';
     this.statusLine.textContent = state.message;
     this.muteButton.textContent = state.muted ? 'SND OFF' : 'SND ON';
     this.viewButton.textContent = state.viewMode === '2d' ? '2.5D VIEW' : '2D VIEW';
@@ -119,21 +138,28 @@ export class Hud {
     if (state.phase === 'flow') {
       return {
         title: 'Water is moving',
-        text: 'Keep placing pipes ahead of the blue water. Flooded pipes are locked. Reach the green drain with enough length.',
+        text: 'Keep placing pipes ahead of the blue water. Flooded pipes are locked. Seal the route to launch the tank rush.',
+      };
+    }
+
+    if (state.phase === 'rush') {
+      return {
+        title: 'Tank rush active',
+        text: 'Ride your sealed energy loop, strafe through turrets and drones, and reach the drain with hull integrity intact.',
       };
     }
 
     if (state.phase === 'cleared') {
       return {
         title: 'Drain reached',
-        text: 'Press R/RST to start a fresh board. Longer routes and crosses are worth more.',
+        text: 'Press R/RST to start a fresh board. Longer routes, color chains, and combos raise energy and score.',
       };
     }
 
     if (state.phase === 'failed') {
       return {
-        title: 'Leak',
-        text: 'The flow hit an empty cell, wall, or wrong connector. Press R/RST and seal the route before opening the valve.',
+        title: 'Run over',
+        text: 'A leak, hull breach, or short route ended the run. Press R/RST and rebuild the circuit.',
       };
     }
 

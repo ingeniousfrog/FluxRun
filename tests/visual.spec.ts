@@ -51,6 +51,7 @@ async function pressGameKey(page: import('@playwright/test').Page, code: string)
     KeyE: 'e',
     Space: ' ',
     Tab: 'Tab',
+    ShiftLeft: 'Shift',
   };
   await page.evaluate(
     ({ code: eventCode, key }) => {
@@ -83,6 +84,7 @@ async function placeHorizontalRoute(page: import('@playwright/test').Page): Prom
 }
 
 test('renders a nonblank interactive game canvas', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   page.on('console', (message) => {
@@ -142,6 +144,39 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
       }, before),
     )
     .toBeGreaterThan(0.45);
+
+  const flowHead = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.player.position ?? { x: 0, y: 0, z: 0 });
+
+  if (testInfo.project.name.includes('mobile')) {
+    await page.locator('#boost-button').dispatchEvent('pointerdown');
+  } else {
+    await page.keyboard.down('Shift');
+  }
+
+  await expect
+    .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase), { timeout: 25_000 })
+    .toBe('rush');
+
+  if (testInfo.project.name.includes('mobile')) {
+    await page.locator('#boost-button').dispatchEvent('pointerup');
+  } else {
+    await page.keyboard.up('Shift');
+  }
+
+  await page.waitForTimeout(2200);
+
+  await expect
+    .poll(async () =>
+      page.evaluate((initial) => {
+        const current = window.__THREE_GAME_DIAGNOSTICS__?.player.position ?? { x: 0, y: 0, z: 0 };
+        return Math.hypot(current.x - initial.x, current.z - initial.z);
+      }, flowHead),
+    )
+    .toBeGreaterThan(0.35);
+
+  await expect
+    .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.enemies ?? 0), { timeout: 10_000 })
+    .toBeGreaterThan(0);
 
   const screenshot = await page.screenshot({ fullPage: true });
   await testInfo.attach(`${testInfo.project.name}-game`, {
