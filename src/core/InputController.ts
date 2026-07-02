@@ -14,10 +14,12 @@ type QueuedActions = {
   rotateClockwise: number;
   rotateCounterClockwise: number;
   place: number;
+  nextPiece: number;
   rush: number;
   restart: number;
   pause: number;
   mute: number;
+  view: number;
 };
 
 export class InputController {
@@ -39,13 +41,18 @@ export class InputController {
     rotateClockwise: 0,
     rotateCounterClockwise: 0,
     place: 0,
+    nextPiece: 0,
     rush: 0,
     restart: 0,
     pause: 0,
     mute: 0,
+    view: 0,
   };
 
   private readonly onKeyDown = (event: KeyboardEvent) => {
+    if (this.shouldPreventDefault(event.code)) {
+      event.preventDefault();
+    }
     if (!event.repeat) {
       this.queueKeyAction(event.code);
     }
@@ -168,6 +175,10 @@ export class InputController {
     return this.consume('place');
   }
 
+  consumeNextPiece(): boolean {
+    return this.consume('nextPiece');
+  }
+
   consumeRush(): boolean {
     return this.consume('rush');
   }
@@ -182,6 +193,10 @@ export class InputController {
 
   consumeMute(): boolean {
     return this.consume('mute');
+  }
+
+  consumeViewToggle(): boolean {
+    return this.consume('view');
   }
 
   dispose(): void {
@@ -206,10 +221,12 @@ export class InputController {
     const action = (event.currentTarget as HTMLElement).dataset.action;
     if (action === 'rotate') this.queued.rotateClockwise += 1;
     if (action === 'place') this.queued.place += 1;
+    if (action === 'next') this.queued.nextPiece += 1;
     if (action === 'rush') this.queued.rush += 1;
     if (action === 'restart') this.queued.restart += 1;
     if (action === 'pause') this.queued.pause += 1;
     if (action === 'mute') this.queued.mute += 1;
+    if (action === 'view') this.queued.view += 1;
   };
 
   private queueKeyAction(code: string): void {
@@ -220,16 +237,37 @@ export class InputController {
     if (code === 'KeyE') this.queued.rotateClockwise += 1;
     if (code === 'KeyQ') this.queued.rotateCounterClockwise += 1;
     if (code === 'Space') this.queued.place += 1;
+    if (code === 'Tab') this.queued.nextPiece += 1;
     if (code === 'Enter') this.queued.rush += 1;
     if (code === 'KeyR') this.queued.restart += 1;
     if (code === 'KeyP' || code === 'Escape') this.queued.pause += 1;
     if (code === 'KeyM') this.queued.mute += 1;
+    if (code === 'KeyV') this.queued.view += 1;
   }
 
   private consume(key: keyof Omit<QueuedActions, 'moveX' | 'moveY'>): boolean {
     if (this.queued[key] <= 0) return false;
     this.queued[key] -= 1;
     return true;
+  }
+
+  private shouldPreventDefault(code: string): boolean {
+    return [
+      'ArrowLeft',
+      'ArrowRight',
+      'ArrowUp',
+      'ArrowDown',
+      'Space',
+      'Enter',
+      'Tab',
+      'KeyQ',
+      'KeyE',
+      'KeyR',
+      'KeyP',
+      'KeyM',
+      'KeyV',
+      'Escape',
+    ].includes(code);
   }
 
   private updatePointer(clientX: number, clientY: number): void {

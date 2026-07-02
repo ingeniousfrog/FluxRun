@@ -10,38 +10,48 @@
     <main id="app">
       <canvas id="game-canvas" aria-label="FluxRun playable game canvas"></canvas>
       <section id="hud" aria-live="polite">
-        <div id="primary-hud">
-          <div class="hud-metric phase-metric">
-            <span>Mode</span>
-            <strong id="phase-value">BUILD</strong>
+        <div id="left-hud">
+          <div id="primary-hud">
+            <div class="hud-metric phase-metric">
+              <span>Mode</span>
+              <strong id="phase-value">BUILD</strong>
+            </div>
+            <div class="hud-metric">
+              <span>Pipes</span>
+              <strong id="route-value">00</strong>
+            </div>
+            <div class="hud-metric">
+              <span>Valve</span>
+              <strong id="energy-value">CLOSED</strong>
+            </div>
+            <div class="hud-metric wide">
+              <span>View</span>
+              <strong id="combo-value">2D</strong>
+            </div>
+            <div class="hud-metric">
+              <span>Leaks</span>
+              <strong id="health-value">04</strong>
+            </div>
+            <div class="hud-metric wide">
+              <span>Score</span>
+              <strong id="score-value">000000</strong>
+            </div>
+            <div id="status-line">BUILD, THEN OPEN VALVE</div>
           </div>
-          <div class="hud-metric">
-            <span>Route</span>
-            <strong id="route-value">00</strong>
+          <div id="guide-strip">
+            <strong id="guide-title">Connect source to drain</strong>
+            <span id="guide-text">Build at your pace. Water stays closed until the route reaches the drain and you press FLOW.</span>
           </div>
-          <div class="hud-metric">
-            <span>Energy</span>
-            <strong id="energy-value">0</strong>
-          </div>
-          <div class="hud-metric wide">
-            <span>Flux</span>
-            <strong id="combo-value">x1.00 / 0</strong>
-          </div>
-          <div class="hud-metric">
-            <span>Hull</span>
-            <strong id="health-value">04</strong>
-          </div>
-          <div class="hud-metric wide">
-            <span>Score</span>
-            <strong id="score-value">000000</strong>
-          </div>
-          <div id="status-line">BUILD CIRCUIT</div>
         </div>
         <div id="side-hud">
           <div class="piece-readout">
-            <span>Module</span>
-            <strong id="piece-value">Line Surge</strong>
+            <span>Current pipe</span>
+            <strong id="piece-value">Straight</strong>
+            <small id="piece-help">PLACE lays this pipe. NEXT skips to another.</small>
           </div>
+          <ol id="pipe-queue" aria-label="Next pipe queue"></ol>
+          <button id="next-action" class="hud-action secondary" type="button" data-action="next">NEXT PIPE</button>
+          <button id="view-action" class="hud-action secondary" type="button" data-action="view">2.5D VIEW</button>
           <ul id="relic-list"></ul>
           <button id="mute-action" class="hud-action" type="button" data-action="mute">SND ON</button>
         </div>
@@ -52,11 +62,13 @@
         </div>
         <div id="touch-actions">
           <button type="button" data-action="rotate">ROT</button>
-          <button type="button" data-action="place">SET</button>
-          <button type="button" data-action="rush">RUN</button>
+          <button type="button" data-action="place">PLACE</button>
+          <button type="button" data-action="next">NEXT</button>
+          <button type="button" data-action="rush">FLOW</button>
+          <button type="button" data-action="view">VIEW</button>
           <button type="button" data-action="restart">RST</button>
         </div>
-        <button id="boost-button" type="button">BST</button>
+        <button id="boost-button" type="button">FAST</button>
       </div>
     </main>
     <script type="module" src="/src/main.ts"></script>

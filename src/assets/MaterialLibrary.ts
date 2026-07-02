@@ -15,9 +15,16 @@ export class MaterialLibrary {
   });
 
   readonly route = new THREE.MeshBasicMaterial({
-    color: '#d7f7ff',
+    color: '#4bdcff',
     transparent: true,
-    opacity: 0.38,
+    opacity: 0.46,
+    depthWrite: false,
+  });
+
+  readonly previewRoute = new THREE.MeshBasicMaterial({
+    color: '#4bdcff',
+    transparent: true,
+    opacity: 0.18,
     depthWrite: false,
   });
 
@@ -96,6 +103,19 @@ export class MaterialLibrary {
   readonly projectileEnemy = new THREE.MeshBasicMaterial({ color: '#ff5e7b' });
   readonly worldMetal = new THREE.MeshStandardMaterial({ color: '#222d34', roughness: 0.62, metalness: 0.58 });
   readonly hazard = new THREE.MeshStandardMaterial({ color: '#ffb02f', roughness: 0.4, metalness: 0.2 });
+  readonly drain = new THREE.MeshStandardMaterial({
+    color: '#9cf15f',
+    emissive: '#27580e',
+    emissiveIntensity: 0.5,
+    roughness: 0.28,
+    metalness: 0.34,
+  });
+  readonly water = new THREE.MeshBasicMaterial({
+    color: '#74e7ff',
+    transparent: true,
+    opacity: 0.88,
+    depthWrite: false,
+  });
 
   private readonly pipeColors: Record<PipeColor, THREE.MeshStandardMaterial> = {
     cyan: new THREE.MeshStandardMaterial({
@@ -137,6 +157,7 @@ export class MaterialLibrary {
       this.ground,
       this.gridLine,
       this.route,
+      this.previewRoute,
       this.ghost,
       this.blockedGhost,
       this.pipeBase,
@@ -151,6 +172,8 @@ export class MaterialLibrary {
       this.projectileEnemy,
       this.worldMetal,
       this.hazard,
+      this.drain,
+      this.water,
       ...Object.values(this.pipeColors),
     ];
     for (const material of materials) material.dispose();

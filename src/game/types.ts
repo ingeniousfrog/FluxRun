@@ -2,7 +2,7 @@ export type Direction = 'N' | 'E' | 'S' | 'W';
 
 export type PipeColor = 'cyan' | 'amber' | 'magenta' | 'lime';
 
-export type ModuleKind = 'straight' | 'elbow' | 'tee' | 'cross' | 'booster' | 'reflector';
+export type ModuleKind = 'source' | 'drain' | 'straight' | 'elbow' | 'tee' | 'cross' | 'reservoir' | 'oneWay';
 
 export type BoardPoint = {
   readonly x: number;
@@ -54,7 +54,17 @@ export type RouteStats = {
   readonly complete: boolean;
 };
 
-export type Phase = 'build' | 'rush' | 'paused' | 'failed' | 'cleared';
+export type Phase = 'build' | 'flow' | 'paused' | 'failed' | 'cleared';
+
+export type ViewMode = '2d' | '2.5d';
+
+export type FlowStatus = 'waiting' | 'flowing' | 'drain' | 'leak' | 'blocked';
+
+export type FlowTrace = {
+  readonly path: ReadonlyArray<BoardPoint>;
+  readonly status: FlowStatus;
+  readonly leakAt: BoardPoint | null;
+};
 
 export type Relic = {
   readonly id: string;

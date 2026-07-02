@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_SIZE } from '../game/constants';
+import { BOARD_COLS, BOARD_ROWS, CELL_SIZE } from '../game/constants';
 import type { MaterialLibrary } from './MaterialLibrary';
 
 export type EnemyKind = 'turret' | 'drone' | 'mine';
@@ -148,10 +148,10 @@ export function createWorldKit(materials: MaterialLibrary): THREE.Group {
   const group = new THREE.Group();
   group.name = 'neonIndustrialWorldKit';
 
-  const railGeometry = new THREE.BoxGeometry(CELL_SIZE * 12.8, 0.16, 0.18);
-  const sideGeometry = new THREE.BoxGeometry(0.18, 0.16, CELL_SIZE * 9.8);
-  const z = (CELL_SIZE * 9) / 2 + 0.58;
-  const x = (CELL_SIZE * 12) / 2 + 0.58;
+  const railGeometry = new THREE.BoxGeometry(CELL_SIZE * (BOARD_COLS + 0.8), 0.16, 0.18);
+  const sideGeometry = new THREE.BoxGeometry(0.18, 0.16, CELL_SIZE * (BOARD_ROWS + 0.8));
+  const z = (CELL_SIZE * BOARD_ROWS) / 2 + 0.58;
+  const x = (CELL_SIZE * BOARD_COLS) / 2 + 0.58;
   const rails = [
     meshAt(railGeometry, materials.worldMetal, 0, 0.11, -z),
     meshAt(railGeometry, materials.worldMetal, 0, 0.11, z),
@@ -166,13 +166,15 @@ export function createWorldKit(materials: MaterialLibrary): THREE.Group {
 
   const towerGeometry = new THREE.BoxGeometry(0.42, 1.8, 0.42);
   const lightGeometry = new THREE.BoxGeometry(0.14, 0.08, 0.62);
+  const towerX = (CELL_SIZE * BOARD_COLS) / 2 + 1.18;
+  const towerZ = (CELL_SIZE * BOARD_ROWS) / 2 + 1.08;
   const towerPoints = [
-    [-7.9, -5.8],
-    [7.9, -5.8],
-    [-7.9, 5.8],
-    [7.9, 5.8],
-    [-6.2, 0],
-    [6.2, 0],
+    [-towerX, -towerZ],
+    [towerX, -towerZ],
+    [-towerX, towerZ],
+    [towerX, towerZ],
+    [-towerX + 1.8, 0],
+    [towerX - 1.8, 0],
   ];
 
   for (const [towerX, towerZ] of towerPoints) {
@@ -189,10 +191,10 @@ export function createWorldKit(materials: MaterialLibrary): THREE.Group {
 
   const conduitGeometry = new THREE.TorusGeometry(0.48, 0.035, 6, 20);
   for (const [conduitX, conduitZ] of [
-    [-5.6, -4.6],
-    [-2.8, 4.8],
-    [2.8, -4.7],
-    [5.4, 4.2],
+    [-x * 0.62, -z * 0.72],
+    [-x * 0.32, z * 0.72],
+    [x * 0.32, -z * 0.72],
+    [x * 0.62, z * 0.58],
   ]) {
     const conduit = meshAt(conduitGeometry, materials.pipeTrim, conduitX, 0.16, conduitZ);
     conduit.name = 'floorConduitLoop';

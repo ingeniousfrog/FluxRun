@@ -61,17 +61,23 @@ button {
   letter-spacing: 0;
 }
 
+#left-hud {
+  display: grid;
+  gap: 8px;
+  max-width: calc(100vw - 320px);
+}
+
 #primary-hud {
   display: grid;
   grid-template-columns: 86px 74px 96px 118px 72px 118px minmax(132px, 188px);
   gap: 8px;
   align-items: stretch;
-  max-width: calc(100vw - 280px);
 }
 
 .hud-metric,
 .piece-readout,
 #status-line,
+#guide-strip,
 .hud-action,
 #relic-list li {
   border: 1px solid rgba(219, 239, 242, 0.2);
@@ -124,9 +130,32 @@ button {
   line-height: 1.15;
 }
 
+#guide-strip {
+  display: grid;
+  grid-template-columns: auto minmax(260px, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 11px;
+  border-left: 3px solid #42d9ff;
+}
+
+#guide-strip strong {
+  color: #42d9ff;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+#guide-strip span {
+  color: rgba(244, 240, 229, 0.78);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
 #side-hud {
   display: grid;
-  grid-template-columns: 170px;
+  grid-template-columns: 190px;
   gap: 8px;
   justify-items: stretch;
   pointer-events: auto;
@@ -139,6 +168,39 @@ button {
 
 #piece-value {
   color: #9cf15f;
+}
+
+#piece-help {
+  display: block;
+  margin-top: 4px;
+  overflow: visible;
+  color: rgba(244, 240, 229, 0.62);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: normal;
+}
+
+#pipe-queue {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#pipe-queue li {
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 1px solid rgba(219, 239, 242, 0.18);
+  background: rgba(8, 13, 18, 0.58);
+  color: rgba(244, 240, 229, 0.76);
+  font-size: 0.64rem;
+  font-weight: 900;
+  line-height: 1.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #relic-list {
@@ -176,6 +238,11 @@ button {
   font-weight: 900;
   cursor: pointer;
   pointer-events: auto;
+}
+
+.hud-action.secondary {
+  color: #f4f0e5;
+  background: rgba(255, 189, 74, 0.16);
 }
 
 .hud-action:focus-visible,
@@ -221,10 +288,10 @@ button {
 
 #touch-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(46px, 1fr));
+  grid-template-columns: repeat(6, minmax(48px, 1fr));
   gap: 8px;
   justify-self: center;
-  width: min(300px, 46vw);
+  width: min(470px, 64vw);
   pointer-events: auto;
 }
 
@@ -256,29 +323,58 @@ button {
     gap: 8px;
   }
 
+  #left-hud {
+    max-width: none;
+  }
+
   #primary-hud {
-    grid-template-columns: repeat(3, minmax(74px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     max-width: none;
     gap: 6px;
   }
 
   .hud-metric {
-    min-height: 42px;
-    padding: 6px 7px;
+    min-height: 34px;
+    padding: 5px 6px;
+  }
+
+  .hud-metric span,
+  .piece-readout span,
+  #relic-list span {
+    font-size: 0.5rem;
   }
 
   .hud-metric strong {
-    font-size: 0.88rem;
+    font-size: 0.78rem;
   }
 
   #status-line {
     grid-column: 1 / -1;
-    min-height: 38px;
-    font-size: 0.7rem;
+    min-height: 32px;
+    padding: 7px 9px;
+    font-size: 0.62rem;
+  }
+
+  #guide-strip {
+    grid-template-columns: 1fr;
+    gap: 3px;
+    min-height: 40px;
+    padding: 6px 8px;
+    max-width: calc(100vw - 20px);
+    overflow: hidden;
+  }
+
+  #guide-strip strong {
+    font-size: 0.62rem;
+  }
+
+  #guide-strip span {
+    font-size: 0.56rem;
+    overflow-wrap: anywhere;
   }
 
   #side-hud {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr) 72px 82px;
     align-items: start;
   }
 
@@ -286,14 +382,47 @@ button {
     display: none;
   }
 
+  #pipe-queue {
+    display: none;
+  }
+
   .piece-readout {
-    min-height: 42px;
+    min-width: 0;
+    min-height: 40px;
     padding: 6px 7px;
+  }
+
+  #piece-value {
+    font-size: 0.78rem;
+  }
+
+  #piece-help {
+    margin-top: 2px;
+    font-size: 0.5rem;
+  }
+
+  #mute-action {
+    display: none;
+  }
+
+  #next-action {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  #view-action {
+    grid-column: 3;
+    grid-row: 1;
   }
 
   .hud-action {
     width: 72px;
-    min-height: 42px;
+    min-height: 40px;
+    font-size: 0.62rem;
+  }
+
+  .hud-action.secondary {
+    width: 82px;
   }
 
   #touch-controls {
@@ -303,27 +432,81 @@ button {
 
 @media (max-width: 520px) {
   #primary-hud {
-    grid-template-columns: repeat(2, minmax(74px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  #primary-hud .hud-metric:nth-child(5),
+  #primary-hud .hud-metric:nth-child(6),
+  #status-line {
+    display: none;
+  }
+
+  .hud-metric {
+    min-height: 30px;
+    padding: 4px 5px;
+  }
+
+  .hud-metric span,
+  .piece-readout span {
+    font-size: 0.42rem;
+  }
+
+  .hud-metric strong,
+  #piece-value {
+    font-size: 0.66rem;
+  }
+
+  #guide-strip {
+    min-height: 30px;
+    padding: 5px 7px;
+  }
+
+  #guide-strip span,
+  #piece-help {
+    display: none;
+  }
+
+  #side-hud {
+    grid-template-columns: minmax(0, 1fr) 68px 76px;
+  }
+
+  .piece-readout {
+    min-height: 34px;
+    padding: 5px 6px;
+  }
+
+  .hud-action {
+    min-height: 34px;
+    font-size: 0.54rem;
   }
 
   #touch-controls {
     grid-template-columns: auto auto;
+    gap: 8px;
   }
 
   #touch-actions {
     grid-column: 1 / -1;
     grid-row: 1;
-    width: min(312px, calc(100vw - 32px));
+    grid-template-columns: repeat(3, minmax(64px, 1fr));
+    width: min(376px, calc(100vw - 32px));
+  }
+
+  #touch-controls button {
+    min-height: 38px;
+    font-size: 0.62rem;
   }
 
   #touch-stick {
     grid-column: 1;
     grid-row: 2;
+    width: clamp(82px, 22vw, 104px);
   }
 
   #boost-button {
     grid-column: 2;
     grid-row: 2;
     justify-self: end;
+    width: clamp(76px, 21vw, 98px);
   }
 }

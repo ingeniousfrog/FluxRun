@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { BOARD_COLS, BOARD_ROWS, CELL_SIZE, SOURCE_POINT } from './constants';
+import { BOARD_COLS, BOARD_ROWS, CELL_SIZE, DRAIN_POINT, SOURCE_POINT } from './constants';
 import type {
   Board,
   BoardPoint,
   Direction,
+  FlowTrace,
   ModuleKind,
   Piece,
   PieceBlock,
@@ -23,12 +24,14 @@ const OFFSETS: Record<Direction, BoardPoint> = {
 };
 
 const BASE_CONNECTORS: Record<ModuleKind, ReadonlyArray<Direction>> = {
+  source: ['E'],
+  drain: ['W'],
   straight: ['N', 'S'],
   elbow: ['N', 'E'],
   tee: ['W', 'N', 'E'],
   cross: ['N', 'E', 'S', 'W'],
-  booster: ['W', 'E'],
-  reflector: ['N', 'E'],
+  reservoir: ['W', 'E'],
+  oneWay: ['W', 'E'],
 };
 
 const COLORS: ReadonlyArray<PipeColor> = ['cyan', 'amber', 'magenta', 'lime'];
@@ -38,48 +41,39 @@ const PIECE_TEMPLATES: ReadonlyArray<{
   readonly blocks: ReadonlyArray<Omit<PieceBlock, 'color'>>;
 }> = [
   {
-    name: 'Line Surge',
+    name: 'Straight',
     blocks: [
-      { x: -1, y: 0, kind: 'straight', rotation: 1 },
-      { x: 0, y: 0, kind: 'booster', rotation: 0 },
-      { x: 1, y: 0, kind: 'straight', rotation: 1 },
-      { x: 2, y: 0, kind: 'straight', rotation: 1 },
+      { x: 0, y: 0, kind: 'straight', rotation: 1 },
     ],
   },
   {
-    name: 'Arc Hook',
-    blocks: [
-      { x: 0, y: -1, kind: 'straight', rotation: 0 },
-      { x: 0, y: 0, kind: 'elbow', rotation: 1 },
-      { x: 0, y: 1, kind: 'reflector', rotation: 2 },
-      { x: 1, y: 1, kind: 'straight', rotation: 1 },
-    ],
-  },
-  {
-    name: 'Tri Split',
-    blocks: [
-      { x: -1, y: 0, kind: 'straight', rotation: 1 },
-      { x: 0, y: 0, kind: 'tee', rotation: 0 },
-      { x: 1, y: 0, kind: 'straight', rotation: 1 },
-      { x: 0, y: -1, kind: 'reflector', rotation: 1 },
-    ],
-  },
-  {
-    name: 'Loop Core',
+    name: 'Elbow',
     blocks: [
       { x: 0, y: 0, kind: 'elbow', rotation: 1 },
-      { x: 1, y: 0, kind: 'elbow', rotation: 2 },
-      { x: 0, y: 1, kind: 'elbow', rotation: 0 },
-      { x: 1, y: 1, kind: 'booster', rotation: 0 },
     ],
   },
   {
-    name: 'Zipper',
+    name: 'Cross',
     blocks: [
-      { x: -1, y: 0, kind: 'straight', rotation: 1 },
-      { x: 0, y: 0, kind: 'elbow', rotation: 1 },
-      { x: 0, y: 1, kind: 'elbow', rotation: 3 },
-      { x: 1, y: 1, kind: 'straight', rotation: 1 },
+      { x: 0, y: 0, kind: 'cross', rotation: 0 },
+    ],
+  },
+  {
+    name: 'T Split',
+    blocks: [
+      { x: 0, y: 0, kind: 'tee', rotation: 1 },
+    ],
+  },
+  {
+    name: 'Reservoir',
+    blocks: [
+      { x: 0, y: 0, kind: 'reservoir', rotation: 0 },
+    ],
+  },
+  {
+    name: 'One Way',
+    blocks: [
+      { x: 0, y: 0, kind: 'oneWay', rotation: 0 },
     ],
   },
 ];
@@ -87,14 +81,8 @@ const PIECE_TEMPLATES: ReadonlyArray<{
 export function createInitialBoard(): Board {
   const empty = createEmptyBoard(BOARD_COLS, BOARD_ROWS);
   const seedCells: ReadonlyArray<PlacedCell> = [
-    seedCell(0, 7, 'straight', 'cyan', 1, 2),
-    seedCell(1, 7, 'straight', 'cyan', 1, 1),
-    seedCell(2, 7, 'booster', 'amber', 0, 1),
-    seedCell(3, 7, 'straight', 'amber', 1, 1),
-    seedCell(4, 7, 'elbow', 'lime', 3, 1),
-    seedCell(4, 6, 'straight', 'lime', 0, 1),
-    seedCell(4, 5, 'elbow', 'magenta', 1, 1),
-    seedCell(5, 5, 'straight', 'magenta', 1, 1),
+    seedCell(SOURCE_POINT.x, SOURCE_POINT.y, 'source', 'cyan', 0, 1),
+    seedCell(DRAIN_POINT.x, DRAIN_POINT.y, 'drain', 'lime', 0, 1),
   ];
   return setCells(empty, seedCells);
 }
@@ -166,6 +154,20 @@ export function placePiece(board: Board, piece: Piece, cursor: BoardPoint): { bo
   return { board: setCells(board, placed), placed };
 }
 
+export function replacePiece(board: Board, piece: Piece, cursor: BoardPoint): { board: Board; placed: ReadonlyArray<PlacedCell> } {
+  const placed = getPieceCells(piece, cursor);
+  if (!placed.every(({ x, y }) => isInside(board, x, y))) {
+    return { board, placed: [] };
+  }
+  const cells = board.cells.slice();
+  for (const placedCell of placed) {
+    const existing = getCell(board, placedCell.x, placedCell.y);
+    if (existing?.locked) return { board, placed: [] };
+    cells[toIndex(board, placedCell.x, placedCell.y)] = placedCell.cell;
+  }
+  return { board: { ...board, cells }, placed };
+}
+
 export function resolveMatches(board: Board): { board: Board; upgraded: number } {
   const upgradeIndexes = new Set<number>();
 
@@ -183,7 +185,6 @@ export function resolveMatches(board: Board): { board: Board; upgraded: number }
     return {
       ...cell,
       level: Math.min(3, cell.level + 1),
-      kind: cell.level >= 2 && cell.kind === 'straight' ? 'booster' : cell.kind,
     };
   });
 
@@ -234,10 +235,10 @@ export function findEnergyRoute(board: Board): RouteStats {
   const route = reconstructRoute(best, parent);
   const routeCells = route.map((point) => getCell(board, point.x, point.y)).filter(Boolean) as PipeCell[];
   const colors = new Set(routeCells.map((cell) => cell.color)).size;
-  const boosters = routeCells.filter((cell) => cell.kind === 'booster').length;
-  const reflectors = routeCells.filter((cell) => cell.kind === 'reflector').length;
+  const boosters = routeCells.filter((cell) => cell.kind === 'reservoir').length;
+  const reflectors = routeCells.filter((cell) => cell.kind === 'cross').length;
   const levelSum = routeCells.reduce((sum, cell) => sum + cell.level, 0);
-  const complete = best.x >= board.cols - 2 && best.y <= 3;
+  const complete = best.x === DRAIN_POINT.x && best.y === DRAIN_POINT.y;
   const energy = Math.round(route.length * 12 + levelSum * 5 + boosters * 14 + reflectors * 10 + colors * 9);
   const multiplier = Number((1 + boosters * 0.18 + reflectors * 0.24 + Math.max(0, colors - 1) * 0.16 + levelSum * 0.025).toFixed(2));
 
@@ -254,7 +255,55 @@ export function findEnergyRoute(board: Board): RouteStats {
 }
 
 export function connectorsFor(cell: Pick<PipeCell, 'kind' | 'rotation'>): ReadonlyArray<Direction> {
+  if (cell.kind === 'source' || cell.kind === 'drain') return BASE_CONNECTORS[cell.kind];
   return BASE_CONNECTORS[cell.kind].map((direction) => rotateDirection(direction, cell.rotation));
+}
+
+export function traceFlow(board: Board): FlowTrace {
+  const path: BoardPoint[] = [SOURCE_POINT];
+  let current: BoardPoint = SOURCE_POINT;
+  let incoming: Direction | null = null;
+  const visitedEdges = new Set<string>();
+
+  for (let step = 0; step < board.cols * board.rows * 2; step += 1) {
+    const cell = getCell(board, current.x, current.y);
+    if (!cell) return { path, status: 'leak', leakAt: current };
+    if (cell.kind === 'drain') return { path, status: 'drain', leakAt: null };
+
+    const connectors = connectorsFor(cell);
+    if (incoming && !connectors.includes(incoming)) {
+      return { path, status: 'blocked', leakAt: current };
+    }
+
+    const exit = chooseExit(cell, connectors, incoming);
+    if (!exit) return { path, status: 'leak', leakAt: current };
+
+    const edgeKey = `${current.x},${current.y},${exit}`;
+    if (visitedEdges.has(edgeKey)) return { path, status: 'flowing', leakAt: null };
+    visitedEdges.add(edgeKey);
+
+    const offset = OFFSETS[exit];
+    const next = { x: current.x + offset.x, y: current.y + offset.y };
+    if (!isInside(board, next.x, next.y)) {
+      return { path, status: 'leak', leakAt: next };
+    }
+
+    const nextCell = getCell(board, next.x, next.y);
+    if (!nextCell) {
+      return { path: [...path, next], status: 'leak', leakAt: next };
+    }
+
+    const nextIncoming = opposite(exit);
+    if (!connectorsFor(nextCell).includes(nextIncoming)) {
+      return { path: [...path, next], status: 'blocked', leakAt: next };
+    }
+
+    path.push(next);
+    current = next;
+    incoming = nextIncoming;
+  }
+
+  return { path, status: 'flowing', leakAt: null };
 }
 
 export function getCell(board: Board, x: number, y: number): PipeCell | null {
@@ -305,6 +354,19 @@ function seedCell(
       locked: true,
     },
   };
+}
+
+function chooseExit(cell: Pick<PipeCell, 'kind' | 'rotation'>, connectors: ReadonlyArray<Direction>, incoming: Direction | null): Direction | null {
+  if (cell.kind === 'source') return 'E';
+  if (cell.kind === 'drain') return null;
+  if (cell.kind === 'oneWay') {
+    const exits = connectorsFor(cell);
+    return incoming === exits[0] ? exits[1] : null;
+  }
+  if (!incoming) return connectors[0] ?? null;
+  const straight = opposite(incoming);
+  if (connectors.includes(straight)) return straight;
+  return connectors.find((direction) => direction !== incoming) ?? null;
 }
 
 function setCells(board: Board, placed: ReadonlyArray<PlacedCell>): Board {
