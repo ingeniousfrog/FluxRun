@@ -148,7 +148,20 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
 
   await expect
     .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase), { timeout: 25_000 })
-    .toMatch(/rush/);
+    .toMatch(/rush_ready|rush/);
+
+  const phaseBeforeLaunch = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase);
+  if (phaseBeforeLaunch === 'rush_ready') {
+    if (testInfo.project.name.includes('mobile')) {
+      await page.locator('[data-action="rush"]').tap();
+    } else {
+      await page.keyboard.press('Enter');
+    }
+  }
+
+  await expect
+    .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase), { timeout: 10_000 })
+    .toBe('rush');
 
   await expect
     .poll(async () => {

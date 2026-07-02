@@ -46,6 +46,7 @@ export class BoardView {
     previewRoute: ReadonlyArray<BoardPoint>,
     phase: string,
     canPlace: boolean,
+    uncoveredWells: ReadonlyArray<BoardPoint> = [],
   ): void {
     this.clearDynamicLayer();
     this.dynamicLayer.add(this.createRouteLayer(previewRoute, false));
@@ -55,7 +56,13 @@ export class BoardView {
       for (let x = 0; x < board.cols; x += 1) {
         const cell = getCell(board, x, y);
         if (cell) {
-          this.dynamicLayer.add(this.createPipeCell({ x, y }, cell, route.some((point) => point.x === x && point.y === y)));
+          const uncovered = uncoveredWells.some((well) => well.x === x && well.y === y);
+          this.dynamicLayer.add(this.createPipeCell(
+            { x, y },
+            cell,
+            route.some((point) => point.x === x && point.y === y),
+            uncovered,
+          ));
         }
       }
     }
@@ -134,7 +141,7 @@ export class BoardView {
     return layer;
   }
 
-  private createPipeCell(point: BoardPoint, cell: PipeCell, charged: boolean): THREE.Group {
+  private createPipeCell(point: BoardPoint, cell: PipeCell, charged: boolean, uncoveredWell = false): THREE.Group {
     const group = new THREE.Group();
     const position = boardToWorld(point, 0);
     group.name = `pipe-${point.x}-${point.y}`;
@@ -165,6 +172,16 @@ export class BoardView {
         wellRing.position.y = 0.34;
         wellRing.rotation.x = Math.PI / 2;
         group.add(wellRing);
+        if (uncoveredWell) {
+          const warningRing = new THREE.Mesh(
+            this.levelRing,
+            new THREE.MeshBasicMaterial({ color: '#ff3b4f', transparent: true, opacity: 0.85 }),
+          );
+          warningRing.scale.set(1.35, 1.35, 1.35);
+          warningRing.position.y = 0.42;
+          warningRing.rotation.x = Math.PI / 2;
+          group.add(warningRing);
+        }
       }
       return group;
     }

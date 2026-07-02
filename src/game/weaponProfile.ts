@@ -7,6 +7,8 @@ const ELEMENT_LABELS: Record<PipeColor, string> = {
   lime: 'Repair Pulse',
 };
 
+const COLOR_PRIORITY: PipeColor[] = ['cyan', 'amber', 'magenta', 'lime'];
+
 export function deriveWeaponProfile(routeStats: RouteStats): WeaponProfile {
   const dominant = pickDominantColor(routeStats);
   if (dominant === 'mixed') {
@@ -24,10 +26,20 @@ export function deriveWeaponProfile(routeStats: RouteStats): WeaponProfile {
 }
 
 function pickDominantColor(routeStats: RouteStats): WeaponElement {
-  if (routeStats.colors <= 1) return 'cyan';
-  if (routeStats.colors === 2) return routeStats.reflectors > routeStats.boosters ? 'magenta' : 'amber';
-  if (routeStats.colors === 3) return 'lime';
-  return 'mixed';
+  const counts = routeStats.colorCounts;
+  const total = COLOR_PRIORITY.reduce((sum, color) => sum + counts[color], 0);
+  if (total === 0) return 'cyan';
+
+  const ranked = [...COLOR_PRIORITY].sort((a, b) => counts[b] - counts[a]);
+  const top = counts[ranked[0]];
+  const second = counts[ranked[1]];
+  const kinds = COLOR_PRIORITY.filter((color) => counts[color] > 0).length;
+
+  if (kinds >= 3 && second > 0 && top > 0 && (top - second) / top < 0.1) {
+    return 'mixed';
+  }
+
+  return ranked[0];
 }
 
 function profileForColor(color: PipeColor): WeaponProfile {

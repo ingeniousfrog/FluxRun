@@ -1,5 +1,5 @@
 import { BOARD_COLS, BOARD_ROWS } from './constants';
-import { createEmptyBoard, getCell, setCellsFromPoints } from './pipes';
+import { createEmptyBoard, setCellsFromPoints, traceFlow } from './pipes';
 import { applyNarrativeToSector } from './narrative';
 import { SECTOR_COUNT } from './RunState';
 import type { Board, BoardPoint, SectorConfig } from './types';
@@ -82,7 +82,14 @@ export function generateSectorBoard(config: SectorConfig): Board {
   return board;
 }
 
-export function boardPassesWellRequirement(board: Board, config: SectorConfig): boolean {
-  if (config.wells.length === 0) return true;
-  return config.wells.every((well) => Boolean(getCell(board, well.x, well.y)?.kind === 'well'));
+export function boardPassesWellRequirement(board: Board, config: SectorConfig, ignoreCracks = false): boolean {
+  return getUncoveredWells(board, config, ignoreCracks).length === 0;
+}
+
+export function getUncoveredWells(board: Board, config: SectorConfig, ignoreCracks = false): BoardPoint[] {
+  if (config.wells.length === 0) return [];
+  const trace = traceFlow(board, ignoreCracks);
+  if (trace.status !== 'drain') return [...config.wells];
+  const pathKeys = new Set(trace.path.map((point) => `${point.x},${point.y}`));
+  return config.wells.filter((well) => !pathKeys.has(`${well.x},${well.y}`));
 }

@@ -66,11 +66,14 @@ export type RouteStats = {
   readonly levelSum: number;
   readonly complete: boolean;
   readonly estimatedRushSeconds: number;
+  readonly colorCounts: Readonly<Record<PipeColor, number>>;
+  readonly dominantColor: PipeColor | null;
+  readonly oneWays: number;
 };
 
 export type RouteComparison = {
   readonly shortest: RouteStats;
-  readonly energyLoop: RouteStats;
+  readonly loopPotential: RouteStats;
 };
 
 export type Phase =
@@ -80,7 +83,6 @@ export type Phase =
   | 'rush'
   | 'paused'
   | 'failed'
-  | 'cleared'
   | 'sector_cleared'
   | 'relic_pick'
   | 'run_cleared';
@@ -110,6 +112,7 @@ export type RelicModifiers = {
   replacePenalty: number;
   placeBonus: number;
   flowSpeedMultiplier: number;
+  fastFlowMultiplier: number;
   leakIgnoresHp: boolean;
   leakMultiplierPenalty: number;
   scatterFire: boolean;
@@ -120,6 +123,14 @@ export type RelicModifiers = {
   rushSpeedBonus: number;
   fireRateBonus: number;
   bossDamageBonus: number;
+  ignoreCracks: boolean;
+  oneWayEnergyBonus: number;
+  loopMultiplierBonus: number;
+  chainScoreBonus: number;
+  hullPlateBonus: number;
+  killScoreBonus: number;
+  dailyClearBonus: number;
+  queuePreviewBonus: number;
 };
 
 export type WeaponElement = PipeColor | 'mixed';
@@ -150,6 +161,7 @@ export type RushPreview = {
   readonly energy: number;
   readonly multiplier: number;
   readonly weaponLabel: string;
+  readonly weaponElement: WeaponElement;
   readonly boostZones: number;
   readonly crossJunctions: number;
   readonly rushSeconds: number;

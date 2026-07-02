@@ -4,12 +4,12 @@ import { createWorldKit } from '../assets/modelFactories';
 import { InputController } from '../core/InputController';
 import { Loop } from '../core/Loop';
 import { createRenderer, resizeRenderer } from '../core/Renderer';
-import { boardPassesWellRequirement, createSectorConfig, generateSectorBoard } from '../game/BoardGenerator';
-import { dailySeed, seedToNumber } from '../game/DailyChallenge';
-import { loadMeta, recordDailyScore, recordRunResult, saveMeta } from '../game/MetaProgress';
+import { boardPassesWellRequirement, createSectorConfig, generateSectorBoard, getUncoveredWells } from '../game/BoardGenerator';
+import { dailySeed, parseRunModeFromUrl } from '../game/DailyChallenge';
+import { loadMeta, recordDailyScore, recordRunResult, saveMeta, unlockRelicsForRun } from '../game/MetaProgress';
 import { RUN_FAILURE_LOG, RUN_VICTORY_LOG } from '../game/narrative';
 import { addRelicToRun, advanceSector, createRunState, isRunComplete, needsRelicPick, type RunState } from '../game/RunState';
-import { computeModifiers, hasRelic, pickRelicChoices, relicById } from '../game/relics';
+import { applyRelicToRouteStats, computeModifiers, pickRelicChoices, relicById } from '../game/relics';
 import { deriveWeaponProfile } from '../game/weaponProfile';
 import { AudioSystem } from '../systems/AudioSystem';
 import { BoardView } from '../systems/BoardView';
@@ -39,6 +39,7 @@ import {
   replacePiece,
   resolveMatches,
   rotatePiece,
+  statsFromTrace,
   traceFlow,
 } from './pipes';
 import type {
@@ -67,6 +68,9 @@ function emptyRouteStats(): RouteStats {
     levelSum: 0,
     complete: false,
     estimatedRushSeconds: 0,
+    colorCounts: { cyan: 0, amber: 0, magenta: 0, lime: 0 },
+    dominantColor: null,
+    oneWays: 0,
   };
 }
 
@@ -114,8 +118,11 @@ export class Game {
   private phaseBeforePause: PhaseBeforePause = 'build';
   private viewMode: ViewMode = '2d';
   private routeStats: RouteStats = emptyRouteStats();
-  private routeComparison: RouteComparison = { shortest: emptyRouteStats(), energyLoop: emptyRouteStats() };
+  private routeComparison: RouteComparison = { shortest: emptyRouteStats(), loopPotential: emptyRouteStats() };
   private relicChoices: Relic[] = [];
+  private lastUnlockedRelics: string[] = [];
+  private runLabel = 'FREE RUN';
+  private sectorClearTimer = 0;
   private frame = 0;
   private elapsed = 0;
   private buildRepeat = 0;
@@ -129,7 +136,9 @@ export class Game {
   private rngState = 1;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
-    this.run = createRunState(seedToNumber(dailySeed()), true);
+    const mode = parseRunModeFromUrl();
+    this.runLabel = mode.label;
+    this.run = createRunState(mode.seed, mode.isDaily);
     this.sector = createSectorConfig(0, this.run.runSeed);
     this.board = generateSectorBoard(this.sector);
     this.renderer = createRenderer(canvas);
@@ -140,7 +149,6 @@ export class Game {
     const boostButton = this.getElement('#boost-button');
     const actionButtons = Array.from(document.querySelectorAll<HTMLElement>('[data-action]'));
     this.input = new InputController(stick, knob, boostButton, actionButtons, canvas);
-    this.wireRelicButtons();
 
     this.debugTools = new DebugTools(this.tuning, () => {
       this.renderer.toneMappingExposure = this.tuning.exposure;
@@ -149,7 +157,7 @@ export class Game {
 
     this.createScene();
     this.cameraRig.setMode(this.viewMode);
-    this.startNewRun(this.run.runSeed, this.run.isDaily);
+    this.startNewRun();
     resizeRenderer(this.renderer, this.camera, this.tuning.maxDpr);
     this.publishDiagnostics();
   }
@@ -196,7 +204,11 @@ export class Game {
     }
 
     if (this.phase === 'rush_ready') {
-      this.updateRushReady(delta);
+      this.updateRushReady();
+    }
+
+    if (this.phase === 'sector_cleared') {
+      this.updateSectorCleared(delta);
     }
 
     if (this.phase === 'build' || this.phase === 'flow') {
@@ -214,7 +226,7 @@ export class Game {
     const cameraTarget = this.phase === 'rush'
       ? this.rush.getCameraTarget()
       : new THREE.Vector3(0, 0, 0);
-    const cameraLag = this.phase === 'failed' || this.phase === 'cleared' || this.phase === 'run_cleared'
+    const cameraLag = this.phase === 'failed' || this.phase === 'run_cleared'
       ? this.tuning.cameraLag * 1.4
       : this.phase === 'rush'
         ? this.tuning.cameraLag
@@ -254,19 +266,13 @@ export class Game {
     this.scene.add(this.vfx.group);
   }
 
-  private wireRelicButtons(): void {
-    document.addEventListener('pointerdown', (event) => {
-      const target = event.target as HTMLElement;
-      const relicId = target.closest<HTMLElement>('[data-relic-id]')?.dataset.relicId;
-      if (relicId && this.phase === 'relic_pick') {
-        const index = Number(target.closest<HTMLElement>('[data-relic-index]')?.dataset.relicIndex ?? 0);
-        const relic = this.relicChoices[index];
-        if (relic) this.pickRelic(relic.id);
-      }
-    });
-  }
-
   private handleGlobalInput(): void {
+    if (this.phase === 'rush_ready' && this.input.consumeCancel()) {
+      this.input.consumePause();
+      this.cancelRushReady();
+      return;
+    }
+
     if (this.input.consumeMute()) {
       this.muted = this.audio.toggleMuted();
       this.message = this.muted ? 'AUDIO MUTED' : 'AUDIO ONLINE';
@@ -300,8 +306,34 @@ export class Game {
     }
 
     if (this.input.consumeRestart()) {
-      this.startNewRun(seedToNumber(dailySeed()), true);
+      this.startNewRun();
     }
+  }
+
+  private cancelRushReady(): void {
+    this.phase = 'build';
+    this.rushReadyTimer = 0;
+    this.message = 'RUSH CANCELLED · ADJUST ROUTE';
+    this.refreshBoardView();
+  }
+
+  private updateSectorCleared(delta: number): void {
+    this.sectorClearTimer -= delta;
+    if (this.input.consumeRush() || this.input.consumePlace()) {
+      this.finishSectorCleared();
+      return;
+    }
+    if (this.sectorClearTimer <= 0) {
+      this.finishSectorCleared();
+    }
+  }
+
+  private finishSectorCleared(): void {
+    if (needsRelicPick(this.run)) {
+      this.openRelicPick();
+      return;
+    }
+    this.beginSector(this.run.sectorIndex);
   }
 
   private pickRelic(relicId: string): void {
@@ -312,13 +344,8 @@ export class Game {
     this.beginSector(this.run.sectorIndex);
   }
 
-  private updateRushReady(delta: number): void {
-    this.rushReadyTimer -= delta;
+  private updateRushReady(): void {
     if (this.input.consumeRush()) {
-      this.launchRush();
-      return;
-    }
-    if (this.rushReadyTimer <= 0) {
       this.launchRush();
     }
   }
@@ -391,7 +418,7 @@ export class Game {
 
     const matchResult = resolveMatches(placement.board);
     this.board = matchResult.board;
-    const chainBonus = hasRelic(this.run.selectedRelics, 'color-amp') ? 30 : 20;
+    const chainBonus = this.modifiers.chainScoreBonus;
     if (matchResult.upgraded > 0) {
       this.score += matchResult.upgraded * chainBonus;
       this.message = `CHAIN +${matchResult.upgraded}`;
@@ -424,8 +451,8 @@ export class Game {
   }
 
   private startFlow(): void {
-    if (this.phase === 'failed' || this.phase === 'cleared' || this.phase === 'run_cleared') {
-      this.startNewRun(seedToNumber(dailySeed()), true);
+    if (this.phase === 'failed' || this.phase === 'run_cleared') {
+      this.startNewRun();
       return;
     }
 
@@ -441,6 +468,7 @@ export class Game {
 
     if (this.phase !== 'flow') {
       const trace = this.traceBoard();
+      this.flow.ignoreCracks = this.modifiers.ignoreCracks;
       this.phase = 'flow';
       this.flow.startFlow(trace);
       this.message = 'WATER FLOWING';
@@ -453,7 +481,14 @@ export class Game {
 
   private updateFlow(delta: number): void {
     const flowSpeed = this.modifiers.flowSpeedMultiplier;
-    const result = this.flow.update(delta, this.board, this.input.isDashHeld(), TARGET_PIPE_LENGTH, flowSpeed);
+    const result = this.flow.update(
+      delta,
+      this.board,
+      this.input.isDashHeld(),
+      TARGET_PIPE_LENGTH,
+      flowSpeed,
+      this.modifiers.fastFlowMultiplier,
+    );
 
     if (result.kind === 'flowing') {
       if (result.newCells.length > 0) {
@@ -496,10 +531,10 @@ export class Game {
 
   private enterRushReady(): void {
     this.phase = 'rush_ready';
-    this.rushReadyTimer = 2;
+    this.rushReadyTimer = 0;
     this.refreshRouteStats();
     const preview = this.buildRushPreview();
-    this.message = `RUSH IN ${this.rushReadyTimer.toFixed(1)}s · ${preview.weaponLabel}`;
+    this.message = `RUSH READY · ${preview.weaponLabel} · ENTER TO LAUNCH`;
     this.audio.rush();
     this.hud.flashStatus('rush');
     this.refreshBoardView();
@@ -509,8 +544,7 @@ export class Game {
     const route = this.flow.sealedRoute.length > 0 ? this.flow.sealedRoute : this.routeStats.route;
     this.phase = 'rush';
     this.rush.start(route);
-    let hull = Math.max(1, this.leaks);
-    if (hasRelic(this.run.selectedRelics, 'hull-plate')) hull += 1;
+    let hull = Math.max(1, this.leaks) + this.modifiers.hullPlateBonus;
     this.combat.start(hull, route, this.sector.isBoss);
     this.message = 'TANK RUSH';
     this.audio.setPhaseAmbience('rush');
@@ -564,8 +598,7 @@ export class Game {
       this.modifiers,
       this.sector.isBoss,
       (killScore) => {
-        let bonus = killScore;
-        if (hasRelic(this.run.selectedRelics, 'energy-siphon')) bonus += 5;
+        const bonus = killScore + this.modifiers.killScoreBonus;
         this.score += bonus;
         this.run.runScore += bonus;
         this.hud.flashStatus('combo');
@@ -604,7 +637,7 @@ export class Game {
     const energyBonus = Math.round(this.routeStats.energy * this.routeStats.multiplier);
     const sectorBonus = 500 + energyBonus + Math.max(0, this.flow.flowedPath.length - TARGET_PIPE_LENGTH) * 35 + this.combat.health * 75;
     let bonus = sectorBonus;
-    if (this.run.isDaily && hasRelic(this.run.selectedRelics, 'daily-spark')) bonus += 100;
+    if (this.run.isDaily) bonus += this.modifiers.dailyClearBonus;
     this.score += bonus;
     this.run.runScore += bonus;
 
@@ -615,7 +648,9 @@ export class Game {
       this.phase = 'run_cleared';
       this.message = 'RUN COMPLETE';
       this.narrative = RUN_VICTORY_LOG;
-      this.meta = recordRunResult(this.meta, this.run.runScore, this.run.sectorIndex, []);
+      const unlocked = unlockRelicsForRun(this.meta, this.run.sectorIndex);
+      this.lastUnlockedRelics = unlocked.newIds;
+      this.meta = recordRunResult(unlocked.meta, this.run.runScore, this.run.sectorIndex, unlocked.newIds);
       if (this.run.isDaily) this.meta = recordDailyScore(this.meta, dailySeed(), this.run.runScore);
       saveMeta(this.meta);
       this.audio.cleared();
@@ -630,7 +665,13 @@ export class Game {
     }
 
     this.phase = 'sector_cleared';
+    this.sectorClearTimer = 1.5;
     this.message = 'SECTOR CLEARED';
+    this.narrative = this.sector.narrative;
+    const unlocked = unlockRelicsForRun(this.meta, this.run.sectorIndex);
+    this.lastUnlockedRelics = unlocked.newIds;
+    this.meta = unlocked.meta;
+    saveMeta(this.meta);
     this.audio.cleared();
     this.audio.stopAmbience();
     const endPoint = this.rush.route[this.rush.route.length - 1]
@@ -639,12 +680,6 @@ export class Game {
     this.vfx.spawnRing(boardToWorld(endPoint, 0.42), '#9cf15f');
     this.rush.reset();
     this.combat.reset();
-
-    if (needsRelicPick(this.run)) {
-      this.openRelicPick();
-      return;
-    }
-    this.beginSector(this.run.sectorIndex);
   }
 
   private openRelicPick(): void {
@@ -668,10 +703,10 @@ export class Game {
     this.sector = createSectorConfig(sectorIndex, this.run.runSeed);
     this.board = generateSectorBoard(this.sector);
     this.pipeQueue = sectorIndex === 0
-      ? Array.from({ length: 6 + (hasRelic(this.run.selectedRelics, 'long-queue') ? 2 : 0) }, (_, index) =>
+      ? Array.from({ length: 6 + this.modifiers.queuePreviewBonus }, (_, index) =>
           createStraightPiece(index),
         )
-      : Array.from({ length: 6 + (hasRelic(this.run.selectedRelics, 'long-queue') ? 2 : 0) }, (_, index) =>
+      : Array.from({ length: 6 + this.modifiers.queuePreviewBonus }, (_, index) =>
           createPiece(index),
         );
     this.pieceSequence = this.pipeQueue.length;
@@ -694,7 +729,9 @@ export class Game {
     this.phase = 'failed';
     this.message = reason;
     this.narrative = RUN_FAILURE_LOG;
-    this.meta = recordRunResult(this.meta, this.run.runScore + this.score, this.run.sectorIndex, []);
+    const unlocked = unlockRelicsForRun(this.meta, this.run.sectorIndex);
+    this.lastUnlockedRelics = unlocked.newIds;
+    this.meta = recordRunResult(unlocked.meta, this.run.runScore, this.run.sectorIndex, unlocked.newIds);
     saveMeta(this.meta);
     this.audio.fail();
     this.audio.stopAmbience();
@@ -702,9 +739,12 @@ export class Game {
     this.combat.reset();
   }
 
-  private startNewRun(seed: number, isDaily: boolean): void {
-    this.run = createRunState(seed, isDaily);
+  private startNewRun(): void {
+    const mode = parseRunModeFromUrl();
+    this.runLabel = mode.label;
+    this.run = createRunState(mode.seed, mode.isDaily);
     this.score = 0;
+    this.lastUnlockedRelics = [];
     this.beginSector(0);
   }
 
@@ -748,8 +788,7 @@ export class Game {
   }
 
   private traceBoard() {
-    this.flow.ignoreCracks = hasRelic(this.run.selectedRelics, 'crack-seal');
-    return traceFlow(this.board, this.flow.ignoreCracks);
+    return traceFlow(this.board, this.modifiers.ignoreCracks);
   }
 
   private get plannedRouteLength(): number {
@@ -760,7 +799,9 @@ export class Game {
   private getFlowStartBlocker(): string | null {
     const trace = this.traceBoard();
     if (trace.status !== 'drain') return 'CONNECT TO DRAIN FIRST';
-    if (!boardPassesWellRequirement(this.board, this.sector)) return 'ROUTE MUST PASS ENERGY WELL';
+    if (!boardPassesWellRequirement(this.board, this.sector, this.modifiers.ignoreCracks)) {
+      return 'ROUTE MUST PASS ENERGY WELL';
+    }
     const missingPipes = TARGET_PIPE_LENGTH - trace.path.length;
     if (missingPipes > 0) return `NEED ${missingPipes} MORE PIPES`;
     return null;
@@ -768,13 +809,10 @@ export class Game {
 
   private refreshRouteStats(): void {
     this.routeComparison = compareRoutes(this.board);
-    this.routeStats = this.routeComparison.energyLoop;
-    if (hasRelic(this.run.selectedRelics, 'loop-hunter') && this.routeStats.route.length > TARGET_PIPE_LENGTH) {
-      this.routeStats = {
-        ...this.routeStats,
-        multiplier: Number((this.routeStats.multiplier + 0.15).toFixed(2)),
-      };
-    }
+    this.routeStats = applyRelicToRouteStats(
+      statsFromTrace(this.board, this.modifiers.ignoreCracks),
+      this.run.selectedRelics,
+    );
   }
 
   private buildRushPreview(): RushPreview {
@@ -783,10 +821,11 @@ export class Game {
       energy: this.routeStats.energy,
       multiplier: Math.max(0.5, this.routeStats.multiplier - this.multiplierPenalty),
       weaponLabel: weapon.label,
+      weaponElement: weapon.element,
       boostZones: this.routeStats.boosters,
       crossJunctions: this.routeStats.reflectors,
       rushSeconds: this.routeStats.estimatedRushSeconds,
-      hullLayers: Math.max(1, this.leaks) + (hasRelic(this.run.selectedRelics, 'hull-plate') ? 1 : 0),
+      hullLayers: Math.max(1, this.leaks) + this.modifiers.hullPlateBonus,
     };
   }
 
@@ -797,8 +836,9 @@ export class Game {
         ? this.rush.route.slice(0, Math.floor(this.rush.routeProgress) + 1)
         : this.flow.flowedPath;
     const preview = this.phase === 'build'
-      ? this.routeStats.route
+      ? this.traceBoard().path
       : this.flow.trace.path;
+    const uncoveredWells = getUncoveredWells(this.board, this.sector, this.modifiers.ignoreCracks);
     this.boardView.sync(
       this.board,
       this.currentPiece,
@@ -807,6 +847,7 @@ export class Game {
       preview,
       this.phase,
       this.canPlaceOrReplaceCurrent(),
+      uncoveredWells,
     );
   }
 
@@ -818,7 +859,6 @@ export class Game {
       rush: this.message,
       paused: 'PAUSED',
       failed: 'FAILED / RESTART',
-      cleared: 'CLEARED / RESTART',
       sector_cleared: 'SECTOR CLEAR',
       relic_pick: this.message,
       run_cleared: 'RUN CLEAR / RESTART',
@@ -856,6 +896,10 @@ export class Game {
       runScore: this.run.runScore,
       narrative: this.narrative,
       isDaily: this.run.isDaily,
+      runLabel: this.runLabel,
+      meta: this.meta,
+      lastUnlockedRelics: this.lastUnlockedRelics,
+      playerRoute: this.routeStats,
     });
   }
 

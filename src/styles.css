@@ -130,15 +130,32 @@ button {
   line-height: 1.15;
 }
 
+#route-tradeoff,
+#meta-strip {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  opacity: 0.92;
+}
+
 #route-tradeoff {
   min-height: 34px;
   padding: 7px 11px;
   border: 1px solid rgba(219, 239, 242, 0.2);
   background: rgba(8, 13, 18, 0.74);
   color: #9cf15f;
-  font-size: 0.68rem;
   font-weight: 800;
   line-height: 1.2;
+}
+
+#meta-strip {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 4px 2px;
+}
+
+#meta-strip strong {
+  color: #9cf15f;
 }
 
 #guide-strip {

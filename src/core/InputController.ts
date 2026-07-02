@@ -21,6 +21,7 @@ type QueuedActions = {
   mute: number;
   view: number;
   relicPickSlot: number;
+  cancel: number;
 };
 
 export class InputController {
@@ -51,6 +52,7 @@ export class InputController {
     mute: 0,
     view: 0,
     relicPickSlot: -1,
+    cancel: 0,
   };
 
   private readonly onKeyDown = (event: KeyboardEvent) => {
@@ -238,6 +240,10 @@ export class InputController {
     return slot;
   }
 
+  consumeCancel(): boolean {
+    return this.consume('cancel');
+  }
+
   dispose(): void {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
@@ -313,6 +319,7 @@ export class InputController {
     if (code === 'Enter') this.queued.rush += 1;
     if (code === 'KeyR') this.queued.restart += 1;
     if (code === 'KeyP' || code === 'Escape') this.queued.pause += 1;
+    if (code === 'Escape') this.queued.cancel += 1;
     if (code === 'KeyM') this.queued.mute += 1;
     if (code === 'KeyV') this.queued.view += 1;
     if (code === 'Digit1') this.queued.relicPickSlot = 0;

@@ -67,6 +67,7 @@ export class FlowSystem {
     dashHeld: boolean,
     targetLength: number,
     speedMultiplier = 1,
+    fastFlowMultiplier = 1,
   ): FlowUpdateResult {
     const { broken } = this.refreshTrace(board);
     if (broken) {
@@ -76,7 +77,7 @@ export class FlowSystem {
     const currentCell = this.trace.path[Math.floor(this.flowProgress)];
     const currentPipe = currentCell ? getCell(board, currentCell.x, currentCell.y) : null;
     const pipeSpeed = (currentPipe?.kind === 'reservoir' ? FLOW_CELLS_PER_SECOND * 0.45 : FLOW_CELLS_PER_SECOND) * speedMultiplier;
-    const manualPressure = dashHeld ? 1.8 : 1;
+    const manualPressure = dashHeld ? 1.8 * fastFlowMultiplier : 1;
     this.flowProgress += delta * pipeSpeed * manualPressure;
 
     const flowIndex = Math.min(Math.floor(this.flowProgress), Math.max(0, this.trace.path.length - 1));

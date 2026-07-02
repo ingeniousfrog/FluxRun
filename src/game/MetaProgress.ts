@@ -1,3 +1,5 @@
+import { ALL_RELICS } from './relics';
+
 const STORAGE_KEY = 'fluxrun_meta_v1';
 
 export type MetaData = {
@@ -42,6 +44,23 @@ export function loadMeta(): MetaData {
 
 export function saveMeta(meta: MetaData): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(meta));
+}
+
+export function unlockRelicsForRun(meta: MetaData, sectorReached: number): { meta: MetaData; newIds: string[] } {
+  void sectorReached;
+  const unlocked = new Set(meta.unlockedRelicIds);
+  const newIds: string[] = [];
+  const eligibleRuns = meta.runsPlayed + 1;
+  for (const relic of ALL_RELICS) {
+    if (relic.unlockAfterRuns <= eligibleRuns && !unlocked.has(relic.id)) {
+      unlocked.add(relic.id);
+      newIds.push(relic.id);
+    }
+  }
+  return {
+    meta: { ...meta, unlockedRelicIds: [...unlocked] },
+    newIds,
+  };
 }
 
 export function recordRunResult(meta: MetaData, score: number, sectorReached: number, newRelicIds: string[]): MetaData {

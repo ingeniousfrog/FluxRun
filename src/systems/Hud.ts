@@ -1,4 +1,6 @@
-import type { Phase, Relic, RouteComparison, RushPreview, SectorConfig, ViewMode } from '../game/types';
+import type { Phase, Relic, RouteComparison, RouteStats, RushPreview, SectorConfig, ViewMode } from '../game/types';
+import type { MetaData } from '../game/MetaProgress';
+import { weaponColorHex } from '../game/weaponProfile';
 
 export type HudState = {
   readonly phase: Phase;
@@ -26,6 +28,10 @@ export type HudState = {
   readonly runScore: number;
   readonly narrative: string;
   readonly isDaily: boolean;
+  readonly runLabel: string;
+  readonly meta: MetaData;
+  readonly lastUnlockedRelics: ReadonlyArray<string>;
+  readonly playerRoute: RouteStats | null;
 };
 
 export class Hud {
@@ -48,6 +54,9 @@ export class Hud {
   private readonly routeTradeoff = this.getElement('#route-tradeoff');
   private readonly sectorLabel = this.getElement('#sector-label');
   private readonly narrativeLine = this.getElement('#narrative-line');
+  private readonly metaBest = this.getElement('#meta-best');
+  private readonly metaRuns = this.getElement('#meta-runs');
+  private readonly metaDaily = this.getElement('#meta-daily');
 
   update(state: HudState): void {
     const phaseLabel: Record<Phase, string> = {
@@ -57,7 +66,6 @@ export class Hud {
       rush: 'RUSH',
       paused: 'PAUSED',
       failed: 'FAILED',
-      cleared: 'CLEARED',
       sector_cleared: 'SECTOR CLEAR',
       relic_pick: 'RELIC PICK',
       run_cleared: 'RUN CLEAR',
@@ -83,9 +91,14 @@ export class Hud {
     this.viewButton.textContent = state.viewMode === '2d' ? '2.5D VIEW' : '2D VIEW';
     this.queueList.replaceChildren(...state.nextPipes.map((name) => this.createPipeQueueItem(name)));
     this.sectorLabel.textContent = state.sector
-      ? `${state.sector.title}${state.isDaily ? ' · DAILY' : ''} · RUN ${state.runScore}`
-      : state.isDaily ? 'DAILY RUN' : 'RUN';
+      ? `${state.sector.title} · ${state.runLabel} · RUN ${state.runScore}`
+      : `${state.runLabel} · RUN ${state.runScore}`;
     this.narrativeLine.textContent = state.narrative;
+    this.metaBest.textContent = String(state.meta.bestScore).padStart(6, '0');
+    this.metaRuns.textContent = String(state.meta.runsPlayed);
+    this.metaDaily.textContent = state.meta.lastDailySeed
+      ? `DAILY BEST ${state.meta.lastDailyScore}`
+      : '';
 
     const guide = this.createGuide(state);
     this.guideTitle.textContent = guide.title;
@@ -126,7 +139,7 @@ export class Hud {
   private pieceHelpText(state: HudState): string {
     if (state.phase === 'relic_pick') return 'Press 1/2/3 or tap a relic to continue the run.';
     if (state.phase === 'rush_ready') {
-      return `Launch in ${state.rushReadySeconds.toFixed(1)}s. Enter/FLOW to rush now.`;
+      return 'Enter/FLOW to launch now. Esc cancels and returns to build.';
     }
     if (state.phase === 'rush') {
       return 'WASD strafe. Right-click or stick aim. FAST boosts. Pipes on-route trigger boosts.';
@@ -138,9 +151,10 @@ export class Hud {
   }
 
   private formatRouteTradeoff(state: HudState): string {
-    if (!state.routeComparison) return 'SHORT — · LOOP —';
-    const { shortest, energyLoop } = state.routeComparison;
-    return `SHORT ${shortest.route.length}p · ${shortest.estimatedRushSeconds}s · E${shortest.energy} | LOOP ${energyLoop.route.length}p · ${energyLoop.estimatedRushSeconds}s · E${energyLoop.energy} x${energyLoop.multiplier.toFixed(2)}`;
+    if (!state.routeComparison || !state.playerRoute) return 'YOUR — · SHORT — · LOOP —';
+    const yours = state.playerRoute;
+    const { shortest, loopPotential } = state.routeComparison;
+    return `YOUR ${yours.route.length}p E${yours.energy} x${yours.multiplier.toFixed(2)} | SHORT ${shortest.route.length}p E${shortest.energy} | LOOP ${loopPotential.route.length}p E${loopPotential.energy} x${loopPotential.multiplier.toFixed(2)}`;
   }
 
   private createPipeQueueItem(name: string): HTMLElement {
@@ -164,6 +178,7 @@ export class Hud {
     button.type = 'button';
     button.className = 'hud-action relic-choice';
     button.dataset.action = 'relic';
+    button.dataset.relicId = relic.id;
     button.dataset.relicIndex = String(index);
     button.innerHTML = `<strong>${index + 1}. ${relic.name}</strong><span>${relic.short}</span>`;
     return button;
@@ -178,9 +193,10 @@ export class Hud {
     }
 
     if (state.phase === 'rush_ready' && state.rushPreview) {
+      const color = weaponColorHex(state.rushPreview.weaponElement);
       return {
         title: `Rush preview · ${state.rushPreview.weaponLabel}`,
-        text: `Energy ${state.rushPreview.energy}, x${state.rushPreview.multiplier.toFixed(2)}, ${state.rushPreview.boostZones} boost zones, ${state.rushPreview.hullLayers} hull layers, ~${state.rushPreview.rushSeconds}s ride.`,
+        text: `● ${state.rushPreview.weaponLabel} (${color}) · Energy ${state.rushPreview.energy}, x${state.rushPreview.multiplier.toFixed(2)}, ${state.rushPreview.boostZones} boost zones, ${state.rushPreview.hullLayers} hull layers, ~${state.rushPreview.rushSeconds}s ride.`,
       };
     }
 
@@ -222,28 +238,23 @@ export class Hud {
     if (state.phase === 'sector_cleared') {
       return {
         title: 'Sector cleared',
-        text: 'Advancing to the next board. Relic pick incoming if another sector remains.',
+        text: 'Read the log, then press Enter to continue. Relic pick follows if another sector remains.',
       };
     }
 
-    if (state.phase === 'run_cleared') {
+    if (state.phase === 'failed' || state.phase === 'run_cleared') {
+      const unlockText = state.lastUnlockedRelics.length > 0
+        ? ` UNLOCKED: ${state.lastUnlockedRelics.map((id) => id).join(', ')}`
+        : '';
+      if (state.phase === 'failed') {
+        return {
+          title: 'Run over',
+          text: `Leak, hull breach, or boss ended the run. Press R/RST to rebuild from sector one.${unlockText}`,
+        };
+      }
       return {
         title: 'Run complete',
-        text: 'All sectors cleared. Press R/RST for a new run or try the daily seed tomorrow.',
-      };
-    }
-
-    if (state.phase === 'cleared') {
-      return {
-        title: 'Drain reached',
-        text: 'Sector complete. Preparing next sector or run victory.',
-      };
-    }
-
-    if (state.phase === 'failed') {
-      return {
-        title: 'Run over',
-        text: 'Leak, hull breach, or boss ended the run. Press R/RST to rebuild from sector one.',
+        text: `All sectors cleared. Press R/RST for a new run.${unlockText}`,
       };
     }
 

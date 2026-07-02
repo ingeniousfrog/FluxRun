@@ -1,10 +1,12 @@
-import type { Relic, RelicModifiers } from './types';
+import type { Relic, RelicModifiers, RouteStats } from './types';
+import { TARGET_PIPE_LENGTH } from './constants';
 
 export const DEFAULT_MODIFIERS: RelicModifiers = {
   skipPenalty: 10,
   replacePenalty: 25,
   placeBonus: 5,
   flowSpeedMultiplier: 1,
+  fastFlowMultiplier: 1,
   leakIgnoresHp: false,
   leakMultiplierPenalty: 0,
   scatterFire: false,
@@ -15,6 +17,14 @@ export const DEFAULT_MODIFIERS: RelicModifiers = {
   rushSpeedBonus: 0,
   fireRateBonus: 0,
   bossDamageBonus: 0,
+  ignoreCracks: false,
+  oneWayEnergyBonus: 0,
+  loopMultiplierBonus: 0,
+  chainScoreBonus: 20,
+  hullPlateBonus: 0,
+  killScoreBonus: 0,
+  dailyClearBonus: 0,
+  queuePreviewBonus: 0,
 };
 
 export const ALL_RELICS: ReadonlyArray<Relic & { unlockAfterRuns: number }> = [
@@ -50,16 +60,33 @@ export function computeModifiers(selected: ReadonlyArray<Relic>): RelicModifiers
   if (ids.has('slow-flow')) mods.flowSpeedMultiplier = 0.7;
   if (ids.has('leak-buffer')) mods.leakIgnoresHp = true;
   if (ids.has('leak-buffer')) mods.leakMultiplierPenalty = 0.12;
-  if (ids.has('pressure-boost')) mods.flowSpeedMultiplier = 1.5;
+  if (ids.has('pressure-boost')) mods.fastFlowMultiplier = 1.5;
   if (ids.has('scatter')) mods.scatterFire = true;
   if (ids.has('reservoir-heal')) mods.reservoirHeal = 1;
   if (ids.has('afterburner')) mods.rushSpeedBonus = 0.18;
   if (ids.has('rapid-coil')) mods.fireRateBonus = 0.25;
   if (ids.has('cross-steer')) mods.crossPlayerChoice = true;
   if (ids.has('boss-slayer')) mods.bossDamageBonus = 0.5;
-  if (ids.has('hull-plate')) mods.rushSpeedBonus += 0; // handled as +1 health at rush start
+  if (ids.has('loop-hunter')) mods.loopMultiplierBonus = 0.15;
+  if (ids.has('one-way-gate')) mods.oneWayEnergyBonus = 10;
+  if (ids.has('color-amp')) mods.chainScoreBonus = 30;
+  if (ids.has('hull-plate')) mods.hullPlateBonus = 1;
+  if (ids.has('energy-siphon')) mods.killScoreBonus = 5;
+  if (ids.has('crack-seal')) mods.ignoreCracks = true;
+  if (ids.has('daily-spark')) mods.dailyClearBonus = 100;
+  if (ids.has('long-queue')) mods.queuePreviewBonus = 2;
 
   return mods;
+}
+
+export function applyRelicToRouteStats(stats: RouteStats, relics: ReadonlyArray<Relic>): RouteStats {
+  const mods = computeModifiers(relics);
+  let energy = stats.energy + mods.oneWayEnergyBonus * stats.oneWays;
+  let multiplier = stats.multiplier;
+  if (mods.loopMultiplierBonus > 0 && stats.route.length > TARGET_PIPE_LENGTH) {
+    multiplier = Number((multiplier + mods.loopMultiplierBonus).toFixed(2));
+  }
+  return { ...stats, energy, multiplier };
 }
 
 export function pickRelicChoices(

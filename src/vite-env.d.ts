@@ -10,7 +10,6 @@ interface ThreeGameDiagnostics {
     | 'rush'
     | 'paused'
     | 'failed'
-    | 'cleared'
     | 'sector_cleared'
     | 'relic_pick'
     | 'run_cleared';

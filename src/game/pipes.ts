@@ -257,8 +257,79 @@ export function resolveMatches(board: Board): { board: Board; upgraded: number }
 export function compareRoutes(board: Board): RouteComparison {
   return {
     shortest: findShortestRoute(board),
-    energyLoop: findEnergyRoute(board),
+    loopPotential: findLongestRouteToDrain(board),
   };
+}
+
+export function statsFromRoute(board: Board, route: ReadonlyArray<BoardPoint>): RouteStats {
+  return buildRouteStats(board, route);
+}
+
+export function statsFromTrace(board: Board, ignoreCracks = false): RouteStats {
+  const trace = traceFlow(board, ignoreCracks);
+  return buildRouteStats(board, trace.path);
+}
+
+export function findLongestRouteToDrain(board: Board): RouteStats {
+  const source = boardSource(board);
+  const drain = boardDrain(board);
+  let best = emptyRoute();
+
+  const dfs = (
+    point: BoardPoint,
+    incoming: Direction | null,
+    path: BoardPoint[],
+    visited: Set<string>,
+  ): void => {
+    const cell = getCell(board, point.x, point.y);
+    if (!cell || cell.kind === 'obstacle' || cell.kind === 'crack') return;
+
+    if (point.x === drain.x && point.y === drain.y) {
+      const stats = buildRouteStats(board, path);
+      if (stats.energy > best.energy || (stats.energy === best.energy && stats.route.length > best.route.length)) {
+        best = stats;
+      }
+      return;
+    }
+
+    const connectors = connectorsFor(cell);
+    if (incoming && !connectors.includes(incoming)) return;
+
+    const exits = cell.kind === 'oneWay'
+      ? (incoming === connectorsFor(cell)[0] ? [connectorsFor(cell)[1]] : [])
+      : incoming
+        ? connectors.filter((d) => d !== incoming).concat(connectors.includes(opposite(incoming)) ? [opposite(incoming)] : [])
+        : [...connectors];
+
+    const uniqueExits = [...new Set(exits)];
+    for (const exit of uniqueExits) {
+      const offset = OFFSETS[exit];
+      const next = { x: point.x + offset.x, y: point.y + offset.y };
+      if (!isInside(board, next.x, next.y)) continue;
+
+      const neighbor = getCell(board, next.x, next.y);
+      if (!neighbor || neighbor.kind === 'obstacle' || neighbor.kind === 'crack') continue;
+      const nextIncoming = opposite(exit);
+      if (!connectorsFor(neighbor).includes(nextIncoming)) continue;
+
+      const key = pointKey(next);
+      if (visited.has(key)) continue;
+
+      visited.add(key);
+      path.push(next);
+      dfs(next, nextIncoming, path, visited);
+      path.pop();
+      visited.delete(key);
+    }
+  };
+
+  dfs(source, null, [source], new Set([pointKey(source)]));
+  return best;
+}
+
+/** @deprecated Use findLongestRouteToDrain or statsFromTrace */
+export function findEnergyRoute(board: Board): RouteStats {
+  return findLongestRouteToDrain(board);
 }
 
 export function findShortestRoute(board: Board): RouteStats {
@@ -305,49 +376,6 @@ export function findShortestRoute(board: Board): RouteStats {
 
   if (!drainFound) return emptyRoute();
   return buildRouteStats(board, reconstructRoute(drainFound, parent));
-}
-
-export function findEnergyRoute(board: Board): RouteStats {
-  const source = boardSource(board);
-  const start = getCell(board, source.x, source.y);
-  if (!start) return emptyRoute();
-
-  const queue: BoardPoint[] = [source];
-  const visited = new Set<string>([pointKey(source)]);
-  const parent = new Map<string, string>();
-  const distance = new Map<string, number>([[pointKey(source), 0]]);
-  let best: BoardPoint = source;
-
-  while (queue.length) {
-    const point = queue.shift();
-    if (!point) continue;
-    const cell = getCell(board, point.x, point.y);
-    if (!cell || cell.kind === 'obstacle' || cell.kind === 'crack') continue;
-
-    for (const direction of connectorsFor(cell)) {
-      const offset = OFFSETS[direction];
-      const next = { x: point.x + offset.x, y: point.y + offset.y };
-      if (!isInside(board, next.x, next.y)) continue;
-
-      const neighbor = getCell(board, next.x, next.y);
-      if (!neighbor || neighbor.kind === 'obstacle' || neighbor.kind === 'crack') continue;
-      if (!connectorsFor(neighbor).includes(opposite(direction))) continue;
-
-      const key = pointKey(next);
-      if (visited.has(key)) continue;
-
-      visited.add(key);
-      parent.set(key, pointKey(point));
-      distance.set(key, (distance.get(pointKey(point)) ?? 0) + 1);
-      queue.push(next);
-
-      if (routeScore(next, distance.get(key) ?? 0) > routeScore(best, distance.get(pointKey(best)) ?? 0)) {
-        best = next;
-      }
-    }
-  }
-
-  return buildRouteStats(board, reconstructRoute(best, parent));
 }
 
 export function connectorsFor(cell: Pick<PipeCell, 'kind' | 'rotation'>): ReadonlyArray<Direction> {
@@ -478,9 +506,17 @@ function setCells(board: Board, placed: ReadonlyArray<PlacedCell>): Board {
 
 function buildRouteStats(board: Board, route: ReadonlyArray<BoardPoint>): RouteStats {
   const routeCells = route.map((point) => getCell(board, point.x, point.y)).filter(Boolean) as PipeCell[];
+  const colorCounts: Record<PipeColor, number> = { cyan: 0, amber: 0, magenta: 0, lime: 0 };
+  for (const cell of routeCells) {
+    if (!TERRAIN_KINDS.has(cell.kind)) {
+      colorCounts[cell.color] += 1;
+    }
+  }
+  const dominantColor = pickDominantFromCounts(colorCounts);
   const colors = new Set(routeCells.map((cell) => cell.color)).size;
   const boosters = routeCells.filter((cell) => cell.kind === 'reservoir').length;
   const reflectors = routeCells.filter((cell) => cell.kind === 'cross').length;
+  const oneWays = routeCells.filter((cell) => cell.kind === 'oneWay').length;
   const levelSum = routeCells.reduce((sum, cell) => sum + cell.level, 0);
   const complete = route.some((point) => {
     const drain = boardDrain(board);
@@ -500,7 +536,23 @@ function buildRouteStats(board: Board, route: ReadonlyArray<BoardPoint>): RouteS
     levelSum,
     complete,
     estimatedRushSeconds,
+    colorCounts,
+    dominantColor,
+    oneWays,
   };
+}
+
+function pickDominantFromCounts(counts: Record<PipeColor, number>): PipeColor | null {
+  const order: PipeColor[] = ['cyan', 'amber', 'magenta', 'lime'];
+  let best: PipeColor | null = null;
+  let bestCount = 0;
+  for (const color of order) {
+    if (counts[color] > bestCount) {
+      bestCount = counts[color];
+      best = color;
+    }
+  }
+  return bestCount > 0 ? best : null;
 }
 
 function toIndex(board: Board, x: number, y: number): number {
@@ -559,9 +611,6 @@ function columnPoints(board: Board, x: number): ReadonlyArray<BoardPoint> {
   return Array.from({ length: board.rows }, (_, y) => ({ x, y }));
 }
 
-function routeScore(point: BoardPoint, distance: number): number {
-  return distance * 10 + point.x * 1.6 - point.y * 0.45;
-}
 
 function reconstructRoute(best: BoardPoint, parent: Map<string, string>): ReadonlyArray<BoardPoint> {
   const route: BoardPoint[] = [best];
@@ -587,5 +636,8 @@ function emptyRoute(): RouteStats {
     levelSum: 0,
     complete: false,
     estimatedRushSeconds: 0,
+    colorCounts: { cyan: 0, amber: 0, magenta: 0, lime: 0 },
+    dominantColor: null,
+    oneWays: 0,
   };
 }
