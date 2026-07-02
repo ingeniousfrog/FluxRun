@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#080d12" />
+    <title>FluxRun</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="game-canvas" aria-label="FluxRun playable game canvas"></canvas>
+      <section id="hud" aria-live="polite">
+        <div id="primary-hud">
+          <div class="hud-metric phase-metric">
+            <span>Mode</span>
+            <strong id="phase-value">BUILD</strong>
+          </div>
+          <div class="hud-metric">
+            <span>Route</span>
+            <strong id="route-value">00</strong>
+          </div>
+          <div class="hud-metric">
+            <span>Energy</span>
+            <strong id="energy-value">0</strong>
+          </div>
+          <div class="hud-metric wide">
+            <span>Flux</span>
+            <strong id="combo-value">x1.00 / 0</strong>
+          </div>
+          <div class="hud-metric">
+            <span>Hull</span>
+            <strong id="health-value">04</strong>
+          </div>
+          <div class="hud-metric wide">
+            <span>Score</span>
+            <strong id="score-value">000000</strong>
+          </div>
+          <div id="status-line">BUILD CIRCUIT</div>
+        </div>
+        <div id="side-hud">
+          <div class="piece-readout">
+            <span>Module</span>
+            <strong id="piece-value">Line Surge</strong>
+          </div>
+          <ul id="relic-list"></ul>
+          <button id="mute-action" class="hud-action" type="button" data-action="mute">SND ON</button>
+        </div>
+      </section>
+      <div id="touch-controls" aria-hidden="true">
+        <div id="touch-stick">
+          <div id="touch-knob"></div>
+        </div>
+        <div id="touch-actions">
+          <button type="button" data-action="rotate">ROT</button>
+          <button type="button" data-action="place">SET</button>
+          <button type="button" data-action="rush">RUN</button>
+          <button type="button" data-action="restart">RST</button>
+        </div>
+        <button id="boost-button" type="button">BST</button>
+      </div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

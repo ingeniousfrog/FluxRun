@@ -1,0 +1,329 @@
+:root {
+  color: #f4f0e5;
+  background: #080d12;
+  font-family:
+    Avenir Next,
+    Avenir,
+    "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  min-width: 320px;
+}
+
+button {
+  font: inherit;
+}
+
+#app {
+  position: relative;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 48px),
+    #080d12;
+}
+
+#game-canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  outline: none;
+  touch-action: none;
+}
+
+#hud {
+  position: absolute;
+  inset: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) auto
+    max(14px, env(safe-area-inset-left));
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  pointer-events: none;
+  color: #f4f0e5;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+#primary-hud {
+  display: grid;
+  grid-template-columns: 86px 74px 96px 118px 72px 118px minmax(132px, 188px);
+  gap: 8px;
+  align-items: stretch;
+  max-width: calc(100vw - 280px);
+}
+
+.hud-metric,
+.piece-readout,
+#status-line,
+.hud-action,
+#relic-list li {
+  border: 1px solid rgba(219, 239, 242, 0.2);
+  background: rgba(8, 13, 18, 0.74);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(10px);
+}
+
+.hud-metric {
+  min-height: 48px;
+  padding: 7px 9px;
+}
+
+.hud-metric span,
+.piece-readout span,
+#relic-list span {
+  display: block;
+  color: rgba(244, 240, 229, 0.62);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.hud-metric strong,
+.piece-readout strong {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #f4f0e5;
+  font-size: 1rem;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phase-metric strong {
+  color: #42d9ff;
+}
+
+.wide strong {
+  font-variant-numeric: tabular-nums;
+}
+
+#status-line {
+  min-height: 48px;
+  padding: 9px 11px;
+  border-left: 3px solid #ffbd4a;
+  color: #ffdf89;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+#side-hud {
+  display: grid;
+  grid-template-columns: 170px;
+  gap: 8px;
+  justify-items: stretch;
+  pointer-events: auto;
+}
+
+.piece-readout {
+  min-height: 50px;
+  padding: 8px 10px;
+}
+
+#piece-value {
+  color: #9cf15f;
+}
+
+#relic-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#relic-list li {
+  min-height: 43px;
+  padding: 7px 9px;
+}
+
+#relic-list strong {
+  display: block;
+  color: #ff5fb1;
+  font-size: 0.72rem;
+  line-height: 1.05;
+}
+
+#relic-list span {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-action {
+  min-height: 38px;
+  color: #080d12;
+  background: #42d9ff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.hud-action:focus-visible,
+#touch-controls button:focus-visible {
+  outline: 2px solid #f4f0e5;
+  outline-offset: 2px;
+}
+
+#touch-controls {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: max(16px, env(safe-area-inset-left));
+  display: none;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: end;
+  pointer-events: none;
+}
+
+#touch-stick {
+  position: relative;
+  width: clamp(96px, 24vw, 132px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(219, 239, 242, 0.28);
+  border-radius: 50%;
+  background: rgba(8, 13, 18, 0.62);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#touch-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 42%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #ffbd4a;
+  box-shadow: 0 0 24px rgba(255, 189, 74, 0.42);
+  transform: translate(-50%, -50%);
+}
+
+#touch-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(46px, 1fr));
+  gap: 8px;
+  justify-self: center;
+  width: min(300px, 46vw);
+  pointer-events: auto;
+}
+
+#touch-controls button {
+  min-height: 46px;
+  border: 1px solid rgba(219, 239, 242, 0.28);
+  border-radius: 6px;
+  color: #f4f0e5;
+  background: rgba(8, 13, 18, 0.72);
+  font-size: 0.72rem;
+  font-weight: 900;
+  touch-action: none;
+}
+
+#boost-button {
+  width: clamp(72px, 18vw, 96px);
+  aspect-ratio: 1;
+  border-radius: 50% !important;
+  color: #080d12 !important;
+  background: #9cf15f !important;
+  pointer-events: auto;
+}
+
+@media (pointer: coarse), (max-width: 860px) {
+  #hud {
+    inset: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) auto
+      max(10px, env(safe-area-inset-left));
+    display: grid;
+    gap: 8px;
+  }
+
+  #primary-hud {
+    grid-template-columns: repeat(3, minmax(74px, 1fr));
+    max-width: none;
+    gap: 6px;
+  }
+
+  .hud-metric {
+    min-height: 42px;
+    padding: 6px 7px;
+  }
+
+  .hud-metric strong {
+    font-size: 0.88rem;
+  }
+
+  #status-line {
+    grid-column: 1 / -1;
+    min-height: 38px;
+    font-size: 0.7rem;
+  }
+
+  #side-hud {
+    grid-template-columns: 1fr auto;
+    align-items: start;
+  }
+
+  #relic-list {
+    display: none;
+  }
+
+  .piece-readout {
+    min-height: 42px;
+    padding: 6px 7px;
+  }
+
+  .hud-action {
+    width: 72px;
+    min-height: 42px;
+  }
+
+  #touch-controls {
+    display: grid;
+  }
+}
+
+@media (max-width: 520px) {
+  #primary-hud {
+    grid-template-columns: repeat(2, minmax(74px, 1fr));
+  }
+
+  #touch-controls {
+    grid-template-columns: auto auto;
+  }
+
+  #touch-actions {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: min(312px, calc(100vw - 32px));
+  }
+
+  #touch-stick {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  #boost-button {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+  }
+}

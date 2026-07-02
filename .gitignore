@@ -1,0 +1,7 @@
+node_modules/
+.npm-cache/
+dist/
+test-results/
+artifacts/
+*.log
+.DS_Store
