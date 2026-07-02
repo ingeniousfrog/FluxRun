@@ -15,6 +15,10 @@ export class VfxSystem {
   private readonly shardGeometry = new THREE.TetrahedronGeometry(0.08, 0);
   private readonly ringGeometry = new THREE.TorusGeometry(0.36, 0.018, 6, 28);
 
+  spawnTrail(position: THREE.Vector3, color: string): void {
+    this.spawnBurst(position, color, 6);
+  }
+
   spawnBurst(position: THREE.Vector3, color: string, count: number): void {
     const particles = Array.from({ length: count }, (_, index) => {
       const angle = (index / count) * Math.PI * 2;

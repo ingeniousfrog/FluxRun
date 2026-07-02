@@ -3,9 +3,16 @@ import { HoverTank } from '../entities/HoverTank';
 import { boardToWorld, getCell } from '../game/pipes';
 import { CELL_SIZE } from '../game/constants';
 import type { Board, BoardPoint } from '../game/types';
+import type { RelicModifiers } from '../game/types';
 import type { DebugTuning } from './DebugTools';
 
 const MAX_LATERAL = CELL_SIZE * 0.38;
+
+export type RushCellEvent = {
+  readonly kind: 'reservoir' | 'cross' | 'oneWay';
+  readonly world: THREE.Vector3;
+  readonly crossKick: number;
+};
 
 export class RushSystem {
   readonly tank: HoverTank;
@@ -14,6 +21,8 @@ export class RushSystem {
   lateralOffset = 0;
   boostTimer = 0;
   reachedDrain = false;
+  damagePulse = 0;
+  lastCellKey = '';
 
   private readonly scratchPosition = new THREE.Vector3();
   private readonly scratchForward = new THREE.Vector3();
@@ -29,6 +38,8 @@ export class RushSystem {
     this.lateralOffset = 0;
     this.boostTimer = 0;
     this.reachedDrain = false;
+    this.damagePulse = 0;
+    this.lastCellKey = '';
     this.tank.group.visible = true;
   }
 
@@ -38,7 +49,13 @@ export class RushSystem {
     this.lateralOffset = 0;
     this.boostTimer = 0;
     this.reachedDrain = false;
+    this.damagePulse = 0;
+    this.lastCellKey = '';
     this.tank.group.visible = false;
+  }
+
+  pulseDamage(): void {
+    this.damagePulse = 1;
   }
 
   update(
@@ -48,20 +65,41 @@ export class RushSystem {
     boostHeld: boolean,
     tuning: DebugTuning,
     energyMultiplier: number,
-  ): void {
-    if (this.route.length < 2) return;
+    modifiers: RelicModifiers,
+  ): RushCellEvent[] {
+    const events: RushCellEvent[] = [];
+    if (this.route.length < 2) return events;
+
+    this.damagePulse = Math.max(0, this.damagePulse - delta * 3.5);
 
     const sample = this.sampleRoute(this.routeProgress);
     const cell = getCell(board, sample.cell.x, sample.cell.y);
-    let speed = tuning.rushSpeed * energyMultiplier;
+    const cellKey = `${sample.cell.x},${sample.cell.y}`;
+    let speed = tuning.rushSpeed * energyMultiplier * (1 + modifiers.rushSpeedBonus);
 
     if (cell?.kind === 'reservoir') {
-      speed *= 1.35;
-      this.boostTimer = Math.max(this.boostTimer, 0.4);
+      speed *= 1.45;
+      this.boostTimer = Math.max(this.boostTimer, 0.55);
+      if (this.lastCellKey !== cellKey) {
+        events.push({ kind: 'reservoir', world: sample.position.clone(), crossKick: 0 });
+      }
     }
+
     if (cell?.kind === 'cross') {
-      this.lateralOffset += (Math.random() > 0.5 ? 1 : -1) * CELL_SIZE * 0.12;
+      const kick = modifiers.crossPlayerChoice
+        ? Math.sign(strafeInput.x || 1) * CELL_SIZE * 0.22
+        : (this.routeProgress % 2 < 1 ? 1 : -1) * CELL_SIZE * 0.18;
+      this.lateralOffset += kick;
+      if (this.lastCellKey !== cellKey) {
+        events.push({ kind: 'cross', world: sample.position.clone(), crossKick: kick });
+      }
     }
+
+    if (cell?.kind === 'oneWay' && this.lastCellKey !== cellKey) {
+      events.push({ kind: 'oneWay', world: sample.position.clone(), crossKick: 0 });
+      this.boostTimer = Math.max(this.boostTimer, 0.25);
+    }
+
     if (boostHeld || this.boostTimer > 0) {
       speed *= tuning.boostMultiplier;
       this.boostTimer = Math.max(0, this.boostTimer - delta);
@@ -78,11 +116,14 @@ export class RushSystem {
     const right = new THREE.Vector3(nextSample.forward.z, 0, -nextSample.forward.x).normalize();
     const worldPos = nextSample.position.clone().addScaledVector(right, this.lateralOffset);
 
-    this.tank.sync(worldPos, nextSample.forward, boostHeld || this.boostTimer > 0, 0);
+    this.tank.sync(worldPos, nextSample.forward, boostHeld || this.boostTimer > 0, this.damagePulse);
+    this.lastCellKey = cellKey;
 
     if (this.routeProgress >= this.route.length - 1.02) {
       this.reachedDrain = true;
     }
+
+    return events;
   }
 
   getCameraTarget(): THREE.Vector3 {

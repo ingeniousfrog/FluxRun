@@ -17,6 +17,7 @@ export class FlowSystem {
   flowProgress = 0;
   sealedRoute: BoardPoint[] = [];
   trace: FlowTrace = { path: [], status: 'leak', leakAt: null };
+  ignoreCracks = false;
 
   reset(): void {
     this.flowedPath = [];
@@ -38,7 +39,7 @@ export class FlowSystem {
       ?? prevPath[Math.floor(this.flowProgress)]
       ?? prevPath[0];
 
-    this.trace = traceFlow(board);
+    this.trace = traceFlow(board, this.ignoreCracks);
 
     if (!head || this.flowedPath.length === 0) {
       return { broken: false };
@@ -65,6 +66,7 @@ export class FlowSystem {
     board: Board,
     dashHeld: boolean,
     targetLength: number,
+    speedMultiplier = 1,
   ): FlowUpdateResult {
     const { broken } = this.refreshTrace(board);
     if (broken) {
@@ -73,7 +75,7 @@ export class FlowSystem {
 
     const currentCell = this.trace.path[Math.floor(this.flowProgress)];
     const currentPipe = currentCell ? getCell(board, currentCell.x, currentCell.y) : null;
-    const pipeSpeed = currentPipe?.kind === 'reservoir' ? FLOW_CELLS_PER_SECOND * 0.45 : FLOW_CELLS_PER_SECOND;
+    const pipeSpeed = (currentPipe?.kind === 'reservoir' ? FLOW_CELLS_PER_SECOND * 0.45 : FLOW_CELLS_PER_SECOND) * speedMultiplier;
     const manualPressure = dashHeld ? 1.8 : 1;
     this.flowProgress += delta * pipeSpeed * manualPressure;
 

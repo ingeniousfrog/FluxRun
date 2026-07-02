@@ -144,12 +144,30 @@ export class BoardView {
       ? this.materials.source
       : cell.kind === 'drain'
         ? this.materials.drain
-        : this.materials.pipeBase;
+        : cell.kind === 'obstacle'
+          ? this.materials.hazard
+          : cell.kind === 'crack'
+            ? this.materials.enemyArmor
+            : cell.kind === 'well'
+              ? this.materials.pipe('cyan')
+              : this.materials.pipeBase;
     const base = new THREE.Mesh(this.cellBase, baseMaterial);
     base.position.y = 0.06;
     base.castShadow = true;
     base.receiveShadow = true;
     group.add(base);
+
+    if (cell.kind === 'obstacle' || cell.kind === 'crack' || cell.kind === 'well') {
+      base.scale.y = cell.kind === 'obstacle' ? 1.8 : 1.2;
+      base.position.y = cell.kind === 'obstacle' ? 0.14 : 0.1;
+      if (cell.kind === 'well') {
+        const wellRing = new THREE.Mesh(this.levelRing, this.materials.pipe('cyan'));
+        wellRing.position.y = 0.34;
+        wellRing.rotation.x = Math.PI / 2;
+        group.add(wellRing);
+      }
+      return group;
+    }
 
     for (const direction of connectorsFor(cell)) {
       group.add(this.createConnector(direction, cell, charged));

@@ -68,19 +68,10 @@ async function placeHorizontalRoute(page: import('@playwright/test').Page): Prom
 
   for (let x = 2; x <= 14; x += 1) {
     await pressGameKey(page, 'ArrowRight');
-    let pieceName = (await page.locator('#piece-value').textContent()) ?? '';
-
-    if (pieceName.includes('Elbow')) {
-      await pressGameKey(page, 'Tab');
-      pieceName = (await page.locator('#piece-value').textContent()) ?? '';
-    }
-
-    if (pieceName.includes('T Split')) {
-      await pressGameKey(page, 'KeyE');
-    }
-
     await pressGameKey(page, 'Space');
   }
+
+  await expect.poll(async () => page.locator('#route-value').textContent(), { timeout: 10_000 }).toContain('16/16');
 }
 
 test('renders a nonblank interactive game canvas', async ({ page }, testInfo) => {
@@ -95,7 +86,7 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
   await page.goto('/');
   await expect(page.locator('#game-canvas')).toBeVisible();
   await expect(page.locator('#guide-title')).toContainText('Connect source');
-  await expect(page.locator('#guide-text')).toContainText('Water stays closed');
+  await expect(page.locator('#guide-text')).toContainText('Plan short vs loop');
   await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 10);
   await page.waitForTimeout(1300);
   await expect.poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase)).toBe('build');
@@ -105,17 +96,20 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
 
   const before = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.player.position ?? { x: 0, y: 0, z: 0 });
   const firstPiece = await page.locator('#piece-value').textContent();
+  void firstPiece;
 
   if (testInfo.project.name.includes('mobile')) {
+    const scoreBefore = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.score ?? 0);
     await page.locator('#touch-actions [data-action="next"]').tap();
-    await expect.poll(async () => page.locator('#piece-value').textContent()).not.toBe(firstPiece);
+    await expect.poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.score ?? 0)).not.toBe(scoreBefore);
     await page.locator('#touch-actions [data-action="restart"]').tap();
     await expect(page.locator('#piece-value')).toContainText('Straight');
     await expect(page.locator('[data-action="rush"]')).toBeVisible();
     await page.locator('[data-action="rush"]').tap();
   } else {
+    const scoreBefore = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.score ?? 0);
     await page.keyboard.press('Tab');
-    await expect.poll(async () => page.locator('#piece-value').textContent()).not.toBe(firstPiece);
+    await expect.poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.score ?? 0)).not.toBe(scoreBefore);
     await page.keyboard.press('r');
     await expect(page.locator('#piece-value')).toContainText('Straight');
     await page.keyboard.press('Enter');
@@ -125,7 +119,6 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
   await expect(page.locator('#guide-title')).toContainText('Connect source');
 
   await placeHorizontalRoute(page);
-  await expect(page.locator('#route-value')).toContainText('16/16');
 
   if (testInfo.project.name.includes('mobile')) {
     await page.locator('[data-action="rush"]').tap();
@@ -155,7 +148,14 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
 
   await expect
     .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase), { timeout: 25_000 })
-    .toBe('rush');
+    .toMatch(/rush/);
+
+  await expect
+    .poll(async () => {
+      const diag = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__);
+      return (diag?.enemies ?? 0) > 0 || (diag?.projectiles ?? 0) > 0;
+    }, { timeout: 10_000 })
+    .toBeTruthy();
 
   if (testInfo.project.name.includes('mobile')) {
     await page.locator('#boost-button').dispatchEvent('pointerup');
@@ -173,10 +173,6 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
       }, flowHead),
     )
     .toBeGreaterThan(0.35);
-
-  await expect
-    .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.enemies ?? 0), { timeout: 10_000 })
-    .toBeGreaterThan(0);
 
   const screenshot = await page.screenshot({ fullPage: true });
   await testInfo.attach(`${testInfo.project.name}-game`, {

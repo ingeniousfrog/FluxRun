@@ -11,6 +11,7 @@ import type {
   PipeCell,
   PipeColor,
   PlacedCell,
+  RouteComparison,
   RouteStats,
 } from './types';
 
@@ -32,9 +33,14 @@ const BASE_CONNECTORS: Record<ModuleKind, ReadonlyArray<Direction>> = {
   cross: ['N', 'E', 'S', 'W'],
   reservoir: ['W', 'E'],
   oneWay: ['W', 'E'],
+  obstacle: [],
+  crack: [],
+  well: ['N', 'E', 'S', 'W'],
 };
 
 const COLORS: ReadonlyArray<PipeColor> = ['cyan', 'amber', 'magenta', 'lime'];
+
+const TERRAIN_KINDS = new Set<ModuleKind>(['obstacle', 'crack', 'well']);
 
 const PIECE_TEMPLATES: ReadonlyArray<{
   readonly name: string;
@@ -42,49 +48,50 @@ const PIECE_TEMPLATES: ReadonlyArray<{
 }> = [
   {
     name: 'Straight',
-    blocks: [
-      { x: 0, y: 0, kind: 'straight', rotation: 1 },
-    ],
+    blocks: [{ x: 0, y: 0, kind: 'straight', rotation: 1 }],
   },
   {
     name: 'Elbow',
-    blocks: [
-      { x: 0, y: 0, kind: 'elbow', rotation: 1 },
-    ],
+    blocks: [{ x: 0, y: 0, kind: 'elbow', rotation: 1 }],
   },
   {
     name: 'Cross',
-    blocks: [
-      { x: 0, y: 0, kind: 'cross', rotation: 0 },
-    ],
+    blocks: [{ x: 0, y: 0, kind: 'cross', rotation: 0 }],
   },
   {
     name: 'T Split',
-    blocks: [
-      { x: 0, y: 0, kind: 'tee', rotation: 1 },
-    ],
+    blocks: [{ x: 0, y: 0, kind: 'tee', rotation: 1 }],
   },
   {
     name: 'Reservoir',
-    blocks: [
-      { x: 0, y: 0, kind: 'reservoir', rotation: 0 },
-    ],
+    blocks: [{ x: 0, y: 0, kind: 'reservoir', rotation: 0 }],
   },
   {
     name: 'One Way',
+    blocks: [{ x: 0, y: 0, kind: 'oneWay', rotation: 0 }],
+  },
+  {
+    name: 'Long Pipe',
     blocks: [
-      { x: 0, y: 0, kind: 'oneWay', rotation: 0 },
+      { x: 0, y: 0, kind: 'straight', rotation: 1 },
+      { x: 1, y: 0, kind: 'straight', rotation: 1 },
+    ],
+  },
+  {
+    name: 'L Bend',
+    blocks: [
+      { x: 0, y: 0, kind: 'elbow', rotation: 1 },
+      { x: 1, y: 0, kind: 'straight', rotation: 0 },
     ],
   },
 ];
 
-export function createInitialBoard(): Board {
-  const empty = createEmptyBoard(BOARD_COLS, BOARD_ROWS);
-  const seedCells: ReadonlyArray<PlacedCell> = [
-    seedCell(SOURCE_POINT.x, SOURCE_POINT.y, 'source', 'cyan', 0, 1),
-    seedCell(DRAIN_POINT.x, DRAIN_POINT.y, 'drain', 'lime', 0, 1),
-  ];
-  return setCells(empty, seedCells);
+export function boardSource(board: Board): BoardPoint {
+  return board.source ?? SOURCE_POINT;
+}
+
+export function boardDrain(board: Board): BoardPoint {
+  return board.drain ?? DRAIN_POINT;
 }
 
 export function createEmptyBoard(cols: number, rows: number): Board {
@@ -92,6 +99,39 @@ export function createEmptyBoard(cols: number, rows: number): Board {
     cols,
     rows,
     cells: Array.from({ length: cols * rows }, () => null),
+  };
+}
+
+export function setCellsFromPoints(
+  board: Board,
+  points: ReadonlyArray<BoardPoint>,
+  kind: ModuleKind,
+  color: PipeColor,
+  rotation: number,
+  locked: boolean,
+): Board {
+  const placed = points.map((point, index) => ({
+    x: point.x,
+    y: point.y,
+    cell: {
+      id: `terrain-${kind}-${point.x}-${point.y}-${index}`,
+      kind,
+      color,
+      rotation,
+      level: 1,
+      locked,
+    },
+  }));
+  return setCells(board, placed);
+}
+
+export function createStraightPiece(sequence: number): Piece {
+  const color = COLORS[sequence % COLORS.length];
+  return {
+    id: `straight-${sequence}`,
+    name: 'Straight',
+    blocks: [{ x: 0, y: 0, kind: 'straight', rotation: 1, color }],
+    rotation: 0,
   };
 }
 
@@ -143,12 +183,24 @@ export function getPieceCells(piece: Piece, cursor: BoardPoint): ReadonlyArray<P
 }
 
 export function canPlacePiece(board: Board, piece: Piece, cursor: BoardPoint): boolean {
-  return getPieceCells(piece, cursor).every(({ x, y }) => isInside(board, x, y) && !getCell(board, x, y));
+  return getPieceCells(piece, cursor).every(({ x, y }) => isPlaceableCell(board, x, y));
+}
+
+export function isTerrainCell(cell: PipeCell | null): boolean {
+  return Boolean(cell && TERRAIN_KINDS.has(cell.kind));
+}
+
+export function isPlaceableCell(board: Board, x: number, y: number): boolean {
+  if (!isInside(board, x, y)) return false;
+  const cell = getCell(board, x, y);
+  if (!cell) return true;
+  if (cell.kind === 'obstacle' || cell.kind === 'crack' || cell.kind === 'well') return false;
+  return !cell.locked;
 }
 
 export function placePiece(board: Board, piece: Piece, cursor: BoardPoint): { board: Board; placed: ReadonlyArray<PlacedCell> } {
   const placed = getPieceCells(piece, cursor);
-  if (!placed.every(({ x, y }) => isInside(board, x, y) && !getCell(board, x, y))) {
+  if (!placed.every(({ x, y }) => isPlaceableCell(board, x, y) && !getCell(board, x, y))) {
     return { board, placed: [] };
   }
   return { board: setCells(board, placed), placed };
@@ -168,7 +220,9 @@ export function replacePiece(
   for (const placedCell of placed) {
     const key = `${placedCell.x},${placedCell.y}`;
     const existing = getCell(board, placedCell.x, placedCell.y);
-    if (existing?.locked || flooded?.has(key)) return { board, placed: [] };
+    if (existing?.locked || existing?.kind === 'obstacle' || flooded?.has(key)) {
+      return { board, placed: [] };
+    }
     cells[toIndex(board, placedCell.x, placedCell.y)] = placedCell.cell;
   }
   return { board: { ...board, cells }, placed };
@@ -200,21 +254,35 @@ export function resolveMatches(board: Board): { board: Board; upgraded: number }
   };
 }
 
-export function findEnergyRoute(board: Board): RouteStats {
-  const start = getCell(board, SOURCE_POINT.x, SOURCE_POINT.y);
+export function compareRoutes(board: Board): RouteComparison {
+  return {
+    shortest: findShortestRoute(board),
+    energyLoop: findEnergyRoute(board),
+  };
+}
+
+export function findShortestRoute(board: Board): RouteStats {
+  const source = boardSource(board);
+  const drain = boardDrain(board);
+  const start = getCell(board, source.x, source.y);
   if (!start) return emptyRoute();
 
-  const queue: BoardPoint[] = [SOURCE_POINT];
-  const visited = new Set<string>([pointKey(SOURCE_POINT)]);
+  const queue: BoardPoint[] = [source];
+  const visited = new Set<string>([pointKey(source)]);
   const parent = new Map<string, string>();
-  const distance = new Map<string, number>([[pointKey(SOURCE_POINT), 0]]);
-  let best: BoardPoint = SOURCE_POINT;
+  const distance = new Map<string, number>([[pointKey(source), 0]]);
+  let drainFound: BoardPoint | null = null;
 
   while (queue.length) {
     const point = queue.shift();
     if (!point) continue;
     const cell = getCell(board, point.x, point.y);
-    if (!cell) continue;
+    if (!cell || cell.kind === 'obstacle' || cell.kind === 'crack') continue;
+
+    if (point.x === drain.x && point.y === drain.y) {
+      drainFound = point;
+      break;
+    }
 
     for (const direction of connectorsFor(cell)) {
       const offset = OFFSETS[direction];
@@ -222,7 +290,48 @@ export function findEnergyRoute(board: Board): RouteStats {
       if (!isInside(board, next.x, next.y)) continue;
 
       const neighbor = getCell(board, next.x, next.y);
-      if (!neighbor || !connectorsFor(neighbor).includes(opposite(direction))) continue;
+      if (!neighbor || neighbor.kind === 'obstacle' || neighbor.kind === 'crack') continue;
+      if (!connectorsFor(neighbor).includes(opposite(direction))) continue;
+
+      const key = pointKey(next);
+      if (visited.has(key)) continue;
+
+      visited.add(key);
+      parent.set(key, pointKey(point));
+      distance.set(key, (distance.get(pointKey(point)) ?? 0) + 1);
+      queue.push(next);
+    }
+  }
+
+  if (!drainFound) return emptyRoute();
+  return buildRouteStats(board, reconstructRoute(drainFound, parent));
+}
+
+export function findEnergyRoute(board: Board): RouteStats {
+  const source = boardSource(board);
+  const start = getCell(board, source.x, source.y);
+  if (!start) return emptyRoute();
+
+  const queue: BoardPoint[] = [source];
+  const visited = new Set<string>([pointKey(source)]);
+  const parent = new Map<string, string>();
+  const distance = new Map<string, number>([[pointKey(source), 0]]);
+  let best: BoardPoint = source;
+
+  while (queue.length) {
+    const point = queue.shift();
+    if (!point) continue;
+    const cell = getCell(board, point.x, point.y);
+    if (!cell || cell.kind === 'obstacle' || cell.kind === 'crack') continue;
+
+    for (const direction of connectorsFor(cell)) {
+      const offset = OFFSETS[direction];
+      const next = { x: point.x + offset.x, y: point.y + offset.y };
+      if (!isInside(board, next.x, next.y)) continue;
+
+      const neighbor = getCell(board, next.x, next.y);
+      if (!neighbor || neighbor.kind === 'obstacle' || neighbor.kind === 'crack') continue;
+      if (!connectorsFor(neighbor).includes(opposite(direction))) continue;
 
       const key = pointKey(next);
       if (visited.has(key)) continue;
@@ -238,42 +347,26 @@ export function findEnergyRoute(board: Board): RouteStats {
     }
   }
 
-  const route = reconstructRoute(best, parent);
-  const routeCells = route.map((point) => getCell(board, point.x, point.y)).filter(Boolean) as PipeCell[];
-  const colors = new Set(routeCells.map((cell) => cell.color)).size;
-  const boosters = routeCells.filter((cell) => cell.kind === 'reservoir').length;
-  const reflectors = routeCells.filter((cell) => cell.kind === 'cross').length;
-  const levelSum = routeCells.reduce((sum, cell) => sum + cell.level, 0);
-  const complete = best.x === DRAIN_POINT.x && best.y === DRAIN_POINT.y;
-  const energy = Math.round(route.length * 12 + levelSum * 5 + boosters * 14 + reflectors * 10 + colors * 9);
-  const multiplier = Number((1 + boosters * 0.18 + reflectors * 0.24 + Math.max(0, colors - 1) * 0.16 + levelSum * 0.025).toFixed(2));
-
-  return {
-    route,
-    energy,
-    multiplier,
-    boosters,
-    reflectors,
-    colors,
-    levelSum,
-    complete,
-  };
+  return buildRouteStats(board, reconstructRoute(best, parent));
 }
 
 export function connectorsFor(cell: Pick<PipeCell, 'kind' | 'rotation'>): ReadonlyArray<Direction> {
   if (cell.kind === 'source' || cell.kind === 'drain') return BASE_CONNECTORS[cell.kind];
+  if (cell.kind === 'obstacle' || cell.kind === 'crack') return [];
   return BASE_CONNECTORS[cell.kind].map((direction) => rotateDirection(direction, cell.rotation));
 }
 
-export function traceFlow(board: Board): FlowTrace {
-  const path: BoardPoint[] = [SOURCE_POINT];
-  let current: BoardPoint = SOURCE_POINT;
+export function traceFlow(board: Board, ignoreCracks = false): FlowTrace {
+  const source = boardSource(board);
+  const path: BoardPoint[] = [source];
+  let current: BoardPoint = source;
   let incoming: Direction | null = null;
   const visitedEdges = new Set<string>();
 
   for (let step = 0; step < board.cols * board.rows * 2; step += 1) {
     const cell = getCell(board, current.x, current.y);
     if (!cell) return { path, status: 'leak', leakAt: current };
+    if (cell.kind === 'crack' && !ignoreCracks) return { path, status: 'leak', leakAt: current };
     if (cell.kind === 'drain') return { path, status: 'drain', leakAt: null };
 
     const connectors = connectorsFor(cell);
@@ -298,6 +391,12 @@ export function traceFlow(board: Board): FlowTrace {
     if (!nextCell) {
       return { path: [...path, next], status: 'leak', leakAt: next };
     }
+    if (nextCell.kind === 'obstacle') {
+      return { path: [...path, next], status: 'blocked', leakAt: next };
+    }
+    if (nextCell.kind === 'crack' && !ignoreCracks) {
+      return { path: [...path, next], status: 'leak', leakAt: next };
+    }
 
     const nextIncoming = opposite(exit);
     if (!connectorsFor(nextCell).includes(nextIncoming)) {
@@ -310,6 +409,22 @@ export function traceFlow(board: Board): FlowTrace {
   }
 
   return { path, status: 'flowing', leakAt: null };
+}
+
+export function analyzeRouteSegment(
+  route: ReadonlyArray<BoardPoint>,
+  index: number,
+): 'straight' | 'corner' | 'cross' | 'reservoir' {
+  const point = route[index];
+  if (!point) return 'straight';
+  const prev = route[index - 1];
+  const next = route[index + 1];
+  if (!prev || !next) return 'straight';
+
+  const dirA = { x: point.x - prev.x, y: point.y - prev.y };
+  const dirB = { x: next.x - point.x, y: next.y - point.y };
+  if (dirA.x !== dirB.x || dirA.y !== dirB.y) return 'corner';
+  return 'straight';
 }
 
 export function getCell(board: Board, x: number, y: number): PipeCell | null {
@@ -340,28 +455,6 @@ export function opposite(direction: Direction): Direction {
   return DIRECTIONS[(DIRECTIONS.indexOf(direction) + 2) % DIRECTIONS.length];
 }
 
-function seedCell(
-  x: number,
-  y: number,
-  kind: ModuleKind,
-  color: PipeColor,
-  rotation: number,
-  level: number,
-): PlacedCell {
-  return {
-    x,
-    y,
-    cell: {
-      id: `seed-${x}-${y}`,
-      kind,
-      color,
-      rotation,
-      level,
-      locked: true,
-    },
-  };
-}
-
 function chooseExit(cell: Pick<PipeCell, 'kind' | 'rotation'>, connectors: ReadonlyArray<Direction>, incoming: Direction | null): Direction | null {
   if (cell.kind === 'source') return 'E';
   if (cell.kind === 'drain') return null;
@@ -381,6 +474,33 @@ function setCells(board: Board, placed: ReadonlyArray<PlacedCell>): Board {
     cells[toIndex(board, placedCell.x, placedCell.y)] = placedCell.cell;
   }
   return { ...board, cells };
+}
+
+function buildRouteStats(board: Board, route: ReadonlyArray<BoardPoint>): RouteStats {
+  const routeCells = route.map((point) => getCell(board, point.x, point.y)).filter(Boolean) as PipeCell[];
+  const colors = new Set(routeCells.map((cell) => cell.color)).size;
+  const boosters = routeCells.filter((cell) => cell.kind === 'reservoir').length;
+  const reflectors = routeCells.filter((cell) => cell.kind === 'cross').length;
+  const levelSum = routeCells.reduce((sum, cell) => sum + cell.level, 0);
+  const complete = route.some((point) => {
+    const drain = boardDrain(board);
+    return point.x === drain.x && point.y === drain.y;
+  });
+  const energy = Math.round(route.length * 12 + levelSum * 5 + boosters * 14 + reflectors * 10 + colors * 9);
+  const multiplier = Number((1 + boosters * 0.18 + reflectors * 0.24 + Math.max(0, colors - 1) * 0.16 + levelSum * 0.025).toFixed(2));
+  const estimatedRushSeconds = Number((route.length / (2.55 * multiplier * 0.22)).toFixed(1));
+
+  return {
+    route,
+    energy,
+    multiplier,
+    boosters,
+    reflectors,
+    colors,
+    levelSum,
+    complete,
+    estimatedRushSeconds,
+  };
 }
 
 function toIndex(board: Board, x: number, y: number): number {
@@ -406,7 +526,10 @@ function collectRuns(board: Board, points: ReadonlyArray<BoardPoint>, upgradeInd
   const flush = () => {
     if (run.length >= 3) {
       for (const point of run) {
-        upgradeIndexes.add(toIndex(board, point.x, point.y));
+        const cell = getCell(board, point.x, point.y);
+        if (cell && !TERRAIN_KINDS.has(cell.kind)) {
+          upgradeIndexes.add(toIndex(board, point.x, point.y));
+        }
       }
     }
     run = [];
@@ -415,7 +538,7 @@ function collectRuns(board: Board, points: ReadonlyArray<BoardPoint>, upgradeInd
 
   for (const point of points) {
     const cell = getCell(board, point.x, point.y);
-    if (!cell) {
+    if (!cell || TERRAIN_KINDS.has(cell.kind)) {
       flush();
       continue;
     }
@@ -463,5 +586,6 @@ function emptyRoute(): RouteStats {
     colors: 0,
     levelSum: 0,
     complete: false,
+    estimatedRushSeconds: 0,
   };
 }

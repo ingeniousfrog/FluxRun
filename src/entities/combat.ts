@@ -22,6 +22,7 @@ export type Projectile = {
   readonly velocity: THREE.Vector3;
   readonly radius: number;
   readonly damage: number;
+  readonly pierce: boolean;
   life: number;
 };
 
@@ -35,11 +36,13 @@ export function createEnemy(
     turret: 3,
     drone: 2,
     mine: 1,
+    boss: 18,
   };
   const scoreByKind: Record<EnemyKind, number> = {
     turret: 260,
     drone: 180,
     mine: 120,
+    boss: 1200,
   };
   const group = createEnemyModel(kind, materials);
   group.position.copy(position);
@@ -63,8 +66,10 @@ export function createProjectile(
   velocity: THREE.Vector3,
   materials: MaterialLibrary,
   damage = 1,
+  element: string = 'cyan',
+  pierce = false,
 ): Projectile {
-  const mesh = createProjectileMesh(owner, materials);
+  const mesh = createProjectileMesh(owner, materials, element);
   mesh.position.copy(position);
   return {
     id,
@@ -74,6 +79,7 @@ export function createProjectile(
     velocity: velocity.clone(),
     radius: owner === 'player' ? 0.12 : 0.16,
     damage,
+    pierce,
     life: owner === 'player' ? 1.25 : 4.2,
   };
 }

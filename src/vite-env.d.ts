@@ -3,7 +3,17 @@
 interface ThreeGameDiagnostics {
   frame: number;
   elapsed: number;
-  phase: 'build' | 'flow' | 'rush' | 'paused' | 'failed' | 'cleared';
+  phase:
+    | 'build'
+    | 'flow'
+    | 'rush_ready'
+    | 'rush'
+    | 'paused'
+    | 'failed'
+    | 'cleared'
+    | 'sector_cleared'
+    | 'relic_pick'
+    | 'run_cleared';
   score: number;
   routeLength: number;
   routeEnergy: number;
@@ -33,6 +43,10 @@ interface ThreeGameDiagnostics {
     height: number;
     dpr: number;
   };
+  sector: number;
+  runScore: number;
+  isDaily: boolean;
+  relicCount: number;
 }
 
 interface Window {

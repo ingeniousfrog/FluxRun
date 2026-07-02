@@ -130,14 +130,65 @@ button {
   line-height: 1.15;
 }
 
+#route-tradeoff {
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid rgba(219, 239, 242, 0.2);
+  background: rgba(8, 13, 18, 0.74);
+  color: #9cf15f;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 #guide-strip {
   display: grid;
-  grid-template-columns: auto minmax(260px, 1fr);
-  gap: 12px;
-  align-items: center;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  align-items: start;
   min-height: 42px;
   padding: 8px 11px;
   border-left: 3px solid #42d9ff;
+}
+
+#sector-label {
+  color: #ffbd4a;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+#narrative-line {
+  color: rgba(156, 241, 95, 0.82);
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+#relic-choices {
+  display: none;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.relic-choice {
+  display: grid;
+  gap: 3px;
+  min-height: 52px;
+  padding: 8px 10px;
+  text-align: left;
+  pointer-events: auto;
+}
+
+.relic-choice strong {
+  color: #f4f0e5;
+  font-size: 0.72rem;
+}
+
+.relic-choice span {
+  color: rgba(244, 240, 229, 0.72);
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: none;
 }
 
 #guide-strip strong {

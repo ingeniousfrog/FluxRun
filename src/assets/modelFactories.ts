@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BOARD_COLS, BOARD_ROWS, CELL_SIZE } from '../game/constants';
 import type { MaterialLibrary } from './MaterialLibrary';
 
-export type EnemyKind = 'turret' | 'drone' | 'mine';
+export type EnemyKind = 'turret' | 'drone' | 'mine' | 'boss';
 
 export function createHoverTankModel(materials: MaterialLibrary): THREE.Group {
   const group = new THREE.Group();
@@ -97,6 +97,25 @@ export function createEnemyModel(kind: EnemyKind, materials: MaterialLibrary): T
       wing.castShadow = true;
       group.add(wing);
     }
+  } else if (kind === 'boss') {
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.92, 0.42, 10), materials.enemyArmor);
+    base.castShadow = true;
+    base.position.y = 0.42;
+    group.add(base);
+
+    const crown = new THREE.Mesh(new THREE.OctahedronGeometry(0.62, 0), materials.enemyCore);
+    crown.name = 'bossCrown';
+    crown.position.y = 1.05;
+    crown.castShadow = true;
+    group.add(crown);
+
+    for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 1.1), materials.hazard);
+      arm.position.set(Math.cos(angle) * 0.72, 0.62, Math.sin(angle) * 0.72);
+      arm.rotation.y = -angle;
+      arm.castShadow = true;
+      group.add(arm);
+    }
   } else {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.06, 8, 22), materials.enemyArmor);
     ring.name = 'mineRing';
@@ -135,10 +154,15 @@ export function createEnemyModel(kind: EnemyKind, materials: MaterialLibrary): T
   return group;
 }
 
-export function createProjectileMesh(owner: 'player' | 'enemy', materials: MaterialLibrary): THREE.Mesh {
+export function createProjectileMesh(
+  owner: 'player' | 'enemy',
+  materials: MaterialLibrary,
+  element = 'cyan',
+): THREE.Mesh {
+  const color = owner === 'player' ? element : 'enemy';
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(owner === 'player' ? 0.08 : 0.1, 10, 6),
-    owner === 'player' ? materials.projectilePlayer : materials.projectileEnemy,
+    owner === 'player' ? materials.pipe(color === 'enemy' ? 'cyan' : (element as 'cyan' | 'amber' | 'magenta' | 'lime')) : materials.projectileEnemy,
   );
   mesh.name = `${owner}-projectile`;
   return mesh;

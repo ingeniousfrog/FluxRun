@@ -2,7 +2,18 @@ export type Direction = 'N' | 'E' | 'S' | 'W';
 
 export type PipeColor = 'cyan' | 'amber' | 'magenta' | 'lime';
 
-export type ModuleKind = 'source' | 'drain' | 'straight' | 'elbow' | 'tee' | 'cross' | 'reservoir' | 'oneWay';
+export type ModuleKind =
+  | 'source'
+  | 'drain'
+  | 'straight'
+  | 'elbow'
+  | 'tee'
+  | 'cross'
+  | 'reservoir'
+  | 'oneWay'
+  | 'obstacle'
+  | 'crack'
+  | 'well';
 
 export type BoardPoint = {
   readonly x: number;
@@ -22,6 +33,8 @@ export type Board = {
   readonly cols: number;
   readonly rows: number;
   readonly cells: ReadonlyArray<PipeCell | null>;
+  readonly source?: BoardPoint;
+  readonly drain?: BoardPoint;
 };
 
 export type PieceBlock = {
@@ -52,9 +65,25 @@ export type RouteStats = {
   readonly colors: number;
   readonly levelSum: number;
   readonly complete: boolean;
+  readonly estimatedRushSeconds: number;
 };
 
-export type Phase = 'build' | 'flow' | 'rush' | 'paused' | 'failed' | 'cleared';
+export type RouteComparison = {
+  readonly shortest: RouteStats;
+  readonly energyLoop: RouteStats;
+};
+
+export type Phase =
+  | 'build'
+  | 'flow'
+  | 'rush_ready'
+  | 'rush'
+  | 'paused'
+  | 'failed'
+  | 'cleared'
+  | 'sector_cleared'
+  | 'relic_pick'
+  | 'run_cleared';
 
 export type ViewMode = '2d' | '2.5d';
 
@@ -66,9 +95,63 @@ export type FlowTrace = {
   readonly leakAt: BoardPoint | null;
 };
 
+export type RelicCategory = 'build' | 'flow' | 'rush' | 'route';
+
 export type Relic = {
   readonly id: string;
   readonly name: string;
   readonly short: string;
+  readonly category: RelicCategory;
   readonly value: number;
+};
+
+export type RelicModifiers = {
+  skipPenalty: number;
+  replacePenalty: number;
+  placeBonus: number;
+  flowSpeedMultiplier: number;
+  leakIgnoresHp: boolean;
+  leakMultiplierPenalty: number;
+  scatterFire: boolean;
+  reservoirHeal: number;
+  crossPlayerChoice: boolean;
+  autoAimOnly: boolean;
+  floodAdjacentPlace: boolean;
+  rushSpeedBonus: number;
+  fireRateBonus: number;
+  bossDamageBonus: number;
+};
+
+export type WeaponElement = PipeColor | 'mixed';
+
+export type WeaponProfile = {
+  readonly element: WeaponElement;
+  readonly pierce: boolean;
+  readonly splashRadius: number;
+  readonly slowDuration: number;
+  readonly healOnKill: number;
+  readonly label: string;
+};
+
+export type SectorConfig = {
+  readonly index: number;
+  readonly seed: number;
+  readonly source: BoardPoint;
+  readonly drain: BoardPoint;
+  readonly obstacles: ReadonlyArray<BoardPoint>;
+  readonly cracks: ReadonlyArray<BoardPoint>;
+  readonly wells: ReadonlyArray<BoardPoint>;
+  readonly isBoss: boolean;
+  readonly narrative: string;
+  readonly title: string;
+};
+
+export type RushPreview = {
+  readonly energy: number;
+  readonly multiplier: number;
+  readonly weaponLabel: string;
+  readonly boostZones: number;
+  readonly crossJunctions: number;
+  readonly rushSeconds: number;
+  readonly hullLayers: number;
 };

@@ -38,17 +38,31 @@ export class AudioSystem {
     return this.muted;
   }
 
-  startAmbience(): void {
-    if (!this.context || this.muted || this.ambience) return;
+  setPhaseAmbience(phase: 'build' | 'flow' | 'rush' | 'menu'): void {
+    if (!this.context || this.muted) return;
+    this.stopAmbience();
+    if (phase === 'menu') return;
     const oscillator = this.context.createOscillator();
     const gain = this.context.createGain();
-    oscillator.type = 'sawtooth';
-    oscillator.frequency.value = 46;
-    gain.gain.value = 0.018;
+    oscillator.type = phase === 'rush' ? 'sawtooth' : phase === 'flow' ? 'triangle' : 'sine';
+    oscillator.frequency.value = phase === 'rush' ? 62 : phase === 'flow' ? 48 : 34;
+    gain.gain.value = phase === 'rush' ? 0.024 : phase === 'flow' ? 0.02 : 0.012;
     oscillator.connect(gain).connect(this.context.destination);
     oscillator.start();
     this.ambience = oscillator;
     this.ambienceGain = gain;
+  }
+
+  valveOpen(): void {
+    this.blip(90, 520, 0.55, 'sawtooth', 0.1);
+  }
+
+  reservoirBoost(): void {
+    this.blip(280, 640, 0.12, 'triangle', 0.05);
+  }
+
+  startAmbience(): void {
+    this.setPhaseAmbience('flow');
   }
 
   stopAmbience(): void {
