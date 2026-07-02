@@ -1,274 +1,160 @@
 import * as THREE from 'three';
-import { BOARD_COLS, BOARD_ROWS, CELL_SIZE } from '../game/constants';
 import type { MaterialLibrary } from './MaterialLibrary';
 
-export type EnemyKind = 'turret' | 'drone' | 'mine' | 'boss';
-
-export function createHoverTankModel(materials: MaterialLibrary): THREE.Group {
-  const group = new THREE.Group();
-  group.name = 'hoverTank';
-
-  const hull = new THREE.Mesh(createWedgeGeometry(0.82, 1.28, 0.34), materials.tankHull);
-  hull.name = 'taperedHull';
-  hull.position.y = 0.34;
-  hull.castShadow = true;
-  hull.receiveShadow = true;
-  group.add(hull);
-
-  const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), materials.glass);
-  cockpit.name = 'cockpitGlass';
-  cockpit.scale.set(1.12, 0.58, 1.28);
-  cockpit.position.set(0, 0.55, -0.1);
-  cockpit.castShadow = true;
-  group.add(cockpit);
-
-  const engineGeometry = new THREE.CylinderGeometry(0.13, 0.18, 0.54, 12);
-  const enginePositions = [
-    [-0.44, 0.25, 0.38],
-    [0.44, 0.25, 0.38],
-  ];
-  for (const [x, y, z] of enginePositions) {
-    const engine = new THREE.Mesh(engineGeometry, materials.tankDark);
-    engine.name = 'enginePod';
-    engine.rotation.x = Math.PI / 2;
-    engine.position.set(x, y, z);
-    engine.castShadow = true;
-    group.add(engine);
-
-    const flare = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.34, 14), materials.pipe('cyan'));
-    flare.name = 'engineFlare';
-    flare.rotation.x = -Math.PI / 2;
-    flare.position.set(x, y, z + 0.34);
-    group.add(flare);
-  }
-
-  const finGeometry = new THREE.BoxGeometry(0.1, 0.08, 0.58);
-  for (const x of [-0.55, 0.55]) {
-    const fin = new THREE.Mesh(finGeometry, materials.pipeTrim);
-    fin.name = 'stabilizerFin';
-    fin.position.set(x, 0.34, -0.05);
-    fin.rotation.z = x > 0 ? -0.2 : 0.2;
-    fin.castShadow = true;
-    group.add(fin);
-  }
-
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.42, 4), materials.pipe('amber'));
-  nose.name = 'frontEmitter';
-  nose.rotation.x = Math.PI / 2;
-  nose.position.set(0, 0.36, -0.78);
-  nose.castShadow = true;
-  group.add(nose);
-
-  return group;
-}
-
-export function createEnemyModel(kind: EnemyKind, materials: MaterialLibrary): THREE.Group {
-  const group = new THREE.Group();
-  group.name = `enemy-${kind}`;
-
-  if (kind === 'turret') {
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.48, 0.22, 8), materials.enemyArmor);
-    base.castShadow = true;
-    base.position.y = 0.25;
-    group.add(base);
-
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 10), materials.enemyCore);
-    core.name = 'chargedCore';
-    core.position.y = 0.55;
-    core.castShadow = true;
-    group.add(core);
-
-    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.72), materials.hazard);
-    barrel.name = 'aimBarrel';
-    barrel.position.set(0, 0.56, -0.48);
-    barrel.castShadow = true;
-    group.add(barrel);
-  } else if (kind === 'drone') {
-    const body = new THREE.Mesh(new THREE.OctahedronGeometry(0.42, 0), materials.enemyCore);
-    body.name = 'facetedDroneCore';
-    body.position.y = 0.62;
-    body.castShadow = true;
-    group.add(body);
-
-    const wingGeometry = new THREE.BoxGeometry(0.74, 0.08, 0.18);
-    for (const z of [-0.28, 0.28]) {
-      const wing = new THREE.Mesh(wingGeometry, materials.enemyArmor);
-      wing.position.set(0, 0.52, z);
-      wing.castShadow = true;
-      group.add(wing);
-    }
-  } else if (kind === 'boss') {
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.92, 0.42, 10), materials.enemyArmor);
-    base.castShadow = true;
-    base.position.y = 0.42;
-    group.add(base);
-
-    const crown = new THREE.Mesh(new THREE.OctahedronGeometry(0.62, 0), materials.enemyCore);
-    crown.name = 'bossCrown';
-    crown.position.y = 1.05;
-    crown.castShadow = true;
-    group.add(crown);
-
-    for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 1.1), materials.hazard);
-      arm.position.set(Math.cos(angle) * 0.72, 0.62, Math.sin(angle) * 0.72);
-      arm.rotation.y = -angle;
-      arm.castShadow = true;
-      group.add(arm);
-    }
-  } else {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.06, 8, 22), materials.enemyArmor);
-    ring.name = 'mineRing';
-    ring.position.y = 0.48;
-    ring.rotation.x = Math.PI / 2;
-    ring.castShadow = true;
-    group.add(ring);
-
-    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.26, 0), materials.enemyCore);
-    core.name = 'mineCore';
-    core.position.y = 0.48;
-    core.castShadow = true;
-    group.add(core);
-
-    const spikeGeometry = new THREE.ConeGeometry(0.06, 0.28, 8);
-    for (let i = 0; i < 6; i += 1) {
-      const spike = new THREE.Mesh(spikeGeometry, materials.hazard);
-      const angle = (i / 6) * Math.PI * 2;
-      spike.position.set(Math.cos(angle) * 0.38, 0.48, Math.sin(angle) * 0.38);
-      spike.rotation.z = Math.PI / 2;
-      spike.rotation.y = -angle;
-      spike.castShadow = true;
-      group.add(spike);
-    }
-  }
-
-  const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.5, 24),
-    new THREE.MeshBasicMaterial({ color: '#05070a', transparent: true, opacity: 0.32, depthWrite: false }),
-  );
-  shadow.name = 'contactShadow';
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.012;
-  group.add(shadow);
-
-  return group;
-}
-
-export function createProjectileMesh(
-  owner: 'player' | 'enemy',
-  materials: MaterialLibrary,
-  element = 'cyan',
-): THREE.Mesh {
-  const color = owner === 'player' ? element : 'enemy';
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(owner === 'player' ? 0.08 : 0.1, 10, 6),
-    owner === 'player' ? materials.pipe(color === 'enemy' ? 'cyan' : (element as 'cyan' | 'amber' | 'magenta' | 'lime')) : materials.projectileEnemy,
-  );
-  mesh.name = `${owner}-projectile`;
-  return mesh;
-}
-
-export function createWorldKit(materials: MaterialLibrary): THREE.Group {
-  const group = new THREE.Group();
-  group.name = 'neonIndustrialWorldKit';
-
-  const railGeometry = new THREE.BoxGeometry(CELL_SIZE * (BOARD_COLS + 0.8), 0.16, 0.18);
-  const sideGeometry = new THREE.BoxGeometry(0.18, 0.16, CELL_SIZE * (BOARD_ROWS + 0.8));
-  const z = (CELL_SIZE * BOARD_ROWS) / 2 + 0.58;
-  const x = (CELL_SIZE * BOARD_COLS) / 2 + 0.58;
-  const rails = [
-    meshAt(railGeometry, materials.worldMetal, 0, 0.11, -z),
-    meshAt(railGeometry, materials.worldMetal, 0, 0.11, z),
-    meshAt(sideGeometry, materials.worldMetal, -x, 0.11, 0),
-    meshAt(sideGeometry, materials.worldMetal, x, 0.11, 0),
-  ];
-  rails.forEach((rail) => {
-    rail.castShadow = true;
-    rail.receiveShadow = true;
-    group.add(rail);
-  });
-
-  const towerGeometry = new THREE.BoxGeometry(0.42, 1.8, 0.42);
-  const lightGeometry = new THREE.BoxGeometry(0.14, 0.08, 0.62);
-  const towerX = (CELL_SIZE * BOARD_COLS) / 2 + 1.18;
-  const towerZ = (CELL_SIZE * BOARD_ROWS) / 2 + 1.08;
-  const towerPoints = [
-    [-towerX, -towerZ],
-    [towerX, -towerZ],
-    [-towerX, towerZ],
-    [towerX, towerZ],
-    [-towerX + 1.8, 0],
-    [towerX - 1.8, 0],
-  ];
-
-  for (const [towerX, towerZ] of towerPoints) {
-    const tower = meshAt(towerGeometry, materials.worldMetal, towerX, 0.9, towerZ);
-    tower.name = 'capacitorTower';
-    tower.castShadow = true;
-    group.add(tower);
-
-    const light = meshAt(lightGeometry, materials.pipe('cyan'), towerX, 1.72, towerZ);
-    light.name = 'towerSignal';
-    light.rotation.y = Math.PI / 4;
-    group.add(light);
-  }
-
-  const conduitGeometry = new THREE.TorusGeometry(0.48, 0.035, 6, 20);
-  for (const [conduitX, conduitZ] of [
-    [-x * 0.62, -z * 0.72],
-    [-x * 0.32, z * 0.72],
-    [x * 0.32, -z * 0.72],
-    [x * 0.62, z * 0.58],
-  ]) {
-    const conduit = meshAt(conduitGeometry, materials.pipeTrim, conduitX, 0.16, conduitZ);
-    conduit.name = 'floorConduitLoop';
-    conduit.rotation.x = Math.PI / 2;
-    group.add(conduit);
-  }
-
-  return group;
-}
-
-function createWedgeGeometry(width: number, length: number, height: number): THREE.BufferGeometry {
-  const halfWidth = width / 2;
-  const halfLength = length / 2;
-  const points = [
-    [-halfWidth, 0, halfLength],
-    [halfWidth, 0, halfLength],
-    [halfWidth * 0.72, 0, -halfLength * 0.42],
-    [0, 0, -halfLength],
-    [-halfWidth * 0.72, 0, -halfLength * 0.42],
-    [-halfWidth * 0.72, height, halfLength * 0.78],
-    [halfWidth * 0.72, height, halfLength * 0.78],
-    [halfWidth * 0.48, height, -halfLength * 0.35],
-    [0, height * 0.86, -halfLength * 0.86],
-    [-halfWidth * 0.48, height, -halfLength * 0.35],
-  ];
-  const vertices = new Float32Array(points.flat());
-  const indices = [
-    0, 1, 2, 0, 2, 4, 4, 2, 3,
-    5, 7, 6, 5, 9, 7, 9, 8, 7,
-    0, 5, 6, 0, 6, 1,
-    1, 6, 7, 1, 7, 2,
-    2, 7, 8, 2, 8, 3,
-    3, 8, 9, 3, 9, 4,
-    4, 9, 5, 4, 5, 0,
-  ];
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-function meshAt(
+function addPart(
+  parent: THREE.Object3D,
   geometry: THREE.BufferGeometry,
   material: THREE.Material,
   x: number,
   y: number,
   z: number,
+  rx = 0,
+  ry = 0,
+  rz = 0,
 ): THREE.Mesh {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(x, y, z);
+  mesh.rotation.set(rx, ry, rz);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  parent.add(mesh);
   return mesh;
+}
+
+function createBodyShape(): THREE.Shape {
+  const s = new THREE.Shape();
+  s.moveTo(-0.44, 0.7);
+  s.bezierCurveTo(-0.66, 0.7, -0.76, 0.5, -0.76, 0.3);
+  s.bezierCurveTo(-0.78, 0.05, -0.72, -0.2, -0.6, -0.42);
+  s.bezierCurveTo(-0.48, -0.62, -0.28, -0.72, -0.08, -0.74);
+  s.lineTo(0.08, -0.74);
+  s.bezierCurveTo(0.28, -0.72, 0.48, -0.62, 0.6, -0.42);
+  s.bezierCurveTo(0.72, -0.2, 0.78, 0.05, 0.76, 0.3);
+  s.bezierCurveTo(0.76, 0.5, 0.66, 0.7, 0.44, 0.7);
+  s.lineTo(-0.44, 0.7);
+  return s;
+}
+
+function createCabinShape(): THREE.Shape {
+  const s = new THREE.Shape();
+  s.moveTo(-0.3, 0.22);
+  s.lineTo(-0.3, -0.28);
+  s.quadraticCurveTo(-0.3, -0.38, -0.18, -0.4);
+  s.lineTo(0.18, -0.4);
+  s.quadraticCurveTo(0.3, -0.38, 0.3, -0.28);
+  s.lineTo(0.3, 0.22);
+  s.quadraticCurveTo(0.3, 0.38, 0.16, 0.4);
+  s.lineTo(-0.16, 0.4);
+  s.quadraticCurveTo(-0.3, 0.38, -0.3, 0.22);
+  return s;
+}
+
+function createWheelMesh(materials: MaterialLibrary): THREE.Group {
+  const wheel = new THREE.Group();
+  const tire = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.1, 16, 28), materials.tire);
+  tire.rotation.y = Math.PI / 2;
+  tire.castShadow = true;
+  wheel.add(tire);
+
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.22, 20), materials.rim);
+  rim.rotation.z = Math.PI / 2;
+  rim.castShadow = true;
+  wheel.add(rim);
+
+  for (let i = 0; i < 6; i += 1) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.18, 0.05), materials.rim);
+    spoke.rotation.z = Math.PI / 2;
+    spoke.rotation.y = (i / 6) * Math.PI * 2;
+    wheel.add(spoke);
+  }
+
+  return wheel;
+}
+
+export function createRaceCarModel(materials: MaterialLibrary): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'raceCar';
+
+  const body = new THREE.Group();
+  body.name = 'carBody';
+  group.add(body);
+
+  const shell = new THREE.ExtrudeGeometry(createBodyShape(), {
+    depth: 0.3,
+    bevelEnabled: true,
+    bevelThickness: 0.06,
+    bevelSize: 0.06,
+    bevelSegments: 4,
+    curveSegments: 20,
+  });
+  shell.rotateX(-Math.PI / 2);
+  shell.translate(0, 0.3, 0);
+  addPart(body, shell, materials.carBody, 0, 0, 0);
+
+  const cabin = new THREE.ExtrudeGeometry(createCabinShape(), {
+    depth: 0.34,
+    bevelEnabled: true,
+    bevelThickness: 0.03,
+    bevelSize: 0.03,
+    bevelSegments: 2,
+    curveSegments: 14,
+  });
+  cabin.rotateX(-Math.PI / 2);
+  cabin.translate(0, 0.52, 0);
+  addPart(body, cabin, materials.carBody, 0, 0, 0);
+
+  const glass = new THREE.Mesh(
+    new THREE.BoxGeometry(0.76, 0.24, 0.5),
+    materials.glass,
+  );
+  glass.position.set(0, 0.58, 0.2);
+  glass.rotation.x = -0.48;
+  glass.castShadow = true;
+  body.add(glass);
+
+  const hood = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.05, 0.48), materials.carBody);
+  hood.position.set(0, 0.4, 0.5);
+  hood.rotation.x = -0.12;
+  hood.castShadow = true;
+  body.add(hood);
+
+  const splitter = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.035, 0.16), materials.carDark);
+  splitter.position.set(0, 0.24, 0.82);
+  body.add(splitter);
+
+  for (const side of [-1, 1]) {
+    addPart(body, new THREE.BoxGeometry(0.12, 0.06, 0.7), materials.carDark, side * 0.78, 0.28, 0.02);
+    addPart(body, new THREE.BoxGeometry(0.16, 0.08, 0.12), materials.accent('amber'), side * 0.7, 0.32, 0.8);
+    addPart(body, new THREE.BoxGeometry(0.2, 0.05, 0.08), materials.accent('magenta'), side * 0.74, 0.36, -0.78);
+
+    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.04, 0.09), materials.trim);
+    mirror.position.set(side * 0.54, 0.58, 0.16);
+    body.add(mirror);
+
+    const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.12, 10), materials.trim);
+    exhaust.position.set(side * 0.26, 0.27, -0.78);
+    exhaust.rotation.x = Math.PI / 2;
+    body.add(exhaust);
+  }
+
+  addPart(body, new THREE.BoxGeometry(0.05, 0.3, 0.05), materials.trim, -0.44, 0.64, -0.6);
+  addPart(body, new THREE.BoxGeometry(0.05, 0.3, 0.05), materials.trim, 0.44, 0.64, -0.6);
+  addPart(body, new THREE.BoxGeometry(1.28, 0.035, 0.22), materials.trim, 0, 0.8, -0.62);
+  addPart(body, new THREE.BoxGeometry(0.1, 0.015, 0.88), materials.accent('cyan'), 0, 0.51, 0);
+
+  const wheelLayout = [
+    ['wheelFL', 0.62, 0.72],
+    ['wheelFR', -0.62, 0.72],
+    ['wheelBL', 0.62, -0.72],
+    ['wheelBR', -0.62, -0.72],
+  ] as const;
+
+  for (const [name, x, z] of wheelLayout) {
+    const wheel = createWheelMesh(materials);
+    wheel.name = name;
+    wheel.position.set(x, 0.34, z);
+    group.add(wheel);
+  }
+
+  return group;
 }

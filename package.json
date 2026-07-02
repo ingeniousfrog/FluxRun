@@ -13,6 +13,7 @@
     "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs"
   },
   "dependencies": {
+    "cannon-es": "^0.20.0",
     "lil-gui": "^0.21.0",
     "three": "^0.184.0"
   },

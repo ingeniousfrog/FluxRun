@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { PNG } from 'pngjs';
 
+const E2E_SEED = 228;
+
 type CanvasSample = {
   ok: boolean;
   reason: string;
@@ -44,37 +46,7 @@ async function sampleCanvas(page: import('@playwright/test').Page): Promise<Canv
   };
 }
 
-async function pressGameKey(page: import('@playwright/test').Page, code: string): Promise<void> {
-  const keyByCode: Record<string, string> = {
-    ArrowRight: 'ArrowRight',
-    Enter: 'Enter',
-    KeyE: 'e',
-    Space: ' ',
-    Tab: 'Tab',
-    ShiftLeft: 'Shift',
-  };
-  await page.evaluate(
-    ({ code: eventCode, key }) => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { code: eventCode, key, bubbles: true }));
-      window.dispatchEvent(new KeyboardEvent('keyup', { code: eventCode, key, bubbles: true }));
-    },
-    { code, key: keyByCode[code] ?? code },
-  );
-  await page.waitForTimeout(60);
-}
-
-async function placeHorizontalRoute(page: import('@playwright/test').Page): Promise<void> {
-  await pressGameKey(page, 'Space');
-
-  for (let x = 2; x <= 14; x += 1) {
-    await pressGameKey(page, 'ArrowRight');
-    await pressGameKey(page, 'Space');
-  }
-
-  await expect.poll(async () => page.locator('#route-value').textContent(), { timeout: 10_000 }).toContain('16/16');
-}
-
-test('renders a nonblank interactive game canvas', async ({ page }, testInfo) => {
+test('renders a nonblank racing canvas and moves the vehicle', async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
@@ -83,97 +55,27 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
   });
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
-  await page.goto('/');
+  await page.goto(`/?seed=${E2E_SEED}`);
   await expect(page.locator('#game-canvas')).toBeVisible();
-  await expect(page.locator('#guide-title')).toContainText('Connect source');
-  await expect(page.locator('#guide-text')).toContainText('Plan short vs loop');
+  await expect(page.locator('#guide-title')).toContainText('任意赛道');
   await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 10);
-  await page.waitForTimeout(1300);
-  await expect.poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase)).toBe('build');
+  await page.waitForTimeout(1200);
 
   const sample = await sampleCanvas(page);
   expect(sample, JSON.stringify(sample)).toMatchObject({ ok: true });
 
   const before = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.player.position ?? { x: 0, y: 0, z: 0 });
-  const firstPiece = await page.locator('#piece-value').textContent();
-  void firstPiece;
 
-  if (testInfo.project.name.includes('mobile')) {
-    const scoreBefore = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.score ?? 0);
-    await page.locator('#touch-actions [data-action="next"]').tap();
-    await expect.poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.score ?? 0)).not.toBe(scoreBefore);
-    await page.locator('#touch-actions [data-action="restart"]').tap();
-    await expect(page.locator('#piece-value')).toContainText('Straight');
-    await expect(page.locator('[data-action="rush"]')).toBeVisible();
-    await page.locator('[data-action="rush"]').tap();
-  } else {
-    const scoreBefore = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.score ?? 0);
-    await page.keyboard.press('Tab');
-    await expect.poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.score ?? 0)).not.toBe(scoreBefore);
-    await page.keyboard.press('r');
-    await expect(page.locator('#piece-value')).toContainText('Straight');
-    await page.keyboard.press('Enter');
-  }
-
-  await expect.poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase)).toBe('build');
-  await expect(page.locator('#guide-title')).toContainText('Connect source');
-
-  await placeHorizontalRoute(page);
-
-  if (testInfo.project.name.includes('mobile')) {
-    await page.locator('[data-action="rush"]').tap();
-  } else {
-    await page.keyboard.press('Enter');
-  }
-
-  await expect.poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase)).toBe('flow');
-  await page.waitForTimeout(1400);
-
-  await expect
-    .poll(async () =>
-      page.evaluate((initial) => {
-        const current = window.__THREE_GAME_DIAGNOSTICS__?.player.position ?? { x: 0, y: 0, z: 0 };
-        return Math.hypot(current.x - initial.x, current.z - initial.z);
-      }, before),
-    )
-    .toBeGreaterThan(0.45);
-
-  const flowHead = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.player.position ?? { x: 0, y: 0, z: 0 });
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase)).toBe('race');
 
   if (testInfo.project.name.includes('mobile')) {
     await page.locator('#boost-button').dispatchEvent('pointerdown');
+    await page.locator('#touch-stick').dispatchEvent('pointerdown', { clientX: 120, clientY: 520 });
+    await page.locator('#touch-stick').dispatchEvent('pointermove', { clientX: 120, clientY: 420 });
   } else {
     await page.keyboard.down('Shift');
-  }
-
-  await expect
-    .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase), { timeout: 25_000 })
-    .toMatch(/rush_ready|rush/);
-
-  const phaseBeforeLaunch = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase);
-  if (phaseBeforeLaunch === 'rush_ready') {
-    if (testInfo.project.name.includes('mobile')) {
-      await page.locator('[data-action="rush"]').tap();
-    } else {
-      await page.keyboard.press('Enter');
-    }
-  }
-
-  await expect
-    .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase), { timeout: 10_000 })
-    .toBe('rush');
-
-  await expect
-    .poll(async () => {
-      const diag = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__);
-      return (diag?.enemies ?? 0) > 0 || (diag?.projectiles ?? 0) > 0;
-    }, { timeout: 10_000 })
-    .toBeTruthy();
-
-  if (testInfo.project.name.includes('mobile')) {
-    await page.locator('#boost-button').dispatchEvent('pointerup');
-  } else {
-    await page.keyboard.up('Shift');
+    await page.keyboard.down('w');
   }
 
   await page.waitForTimeout(2200);
@@ -183,15 +85,20 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
       page.evaluate((initial) => {
         const current = window.__THREE_GAME_DIAGNOSTICS__?.player.position ?? { x: 0, y: 0, z: 0 };
         return Math.hypot(current.x - initial.x, current.z - initial.z);
-      }, flowHead),
+      }, before),
     )
-    .toBeGreaterThan(0.35);
+    .toBeGreaterThan(2);
 
   const screenshot = await page.screenshot({ fullPage: true });
-  await testInfo.attach(`${testInfo.project.name}-game`, {
+  await testInfo.attach(`${testInfo.project.name}-racing`, {
     body: screenshot,
     contentType: 'image/png',
   });
+
+  if (!testInfo.project.name.includes('mobile')) {
+    await page.keyboard.up('w');
+    await page.keyboard.up('Shift');
+  }
 
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);

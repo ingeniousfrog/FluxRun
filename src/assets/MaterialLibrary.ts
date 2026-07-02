@@ -1,65 +1,30 @@
 import * as THREE from 'three';
-import type { PipeColor } from '../game/types';
+
+export type AccentColor = 'cyan' | 'amber' | 'magenta' | 'lime';
 
 export class MaterialLibrary {
   readonly ground = new THREE.MeshStandardMaterial({
-    color: '#141a1d',
-    roughness: 0.78,
-    metalness: 0.24,
+    color: '#2d5a34',
+    roughness: 0.88,
+    metalness: 0.04,
   });
 
-  readonly gridLine = new THREE.MeshBasicMaterial({
-    color: '#30424b',
-    transparent: true,
-    opacity: 0.55,
+  readonly carDark = new THREE.MeshStandardMaterial({
+    color: '#1a1f24',
+    roughness: 0.55,
+    metalness: 0.35,
   });
 
-  readonly route = new THREE.MeshBasicMaterial({
-    color: '#4bdcff',
-    transparent: true,
-    opacity: 0.46,
-    depthWrite: false,
+  readonly tire = new THREE.MeshStandardMaterial({
+    color: '#121418',
+    roughness: 0.95,
+    metalness: 0.05,
   });
 
-  readonly previewRoute = new THREE.MeshBasicMaterial({
-    color: '#4bdcff',
-    transparent: true,
-    opacity: 0.18,
-    depthWrite: false,
-  });
-
-  readonly ghost = new THREE.MeshBasicMaterial({
-    color: '#f8f3e2',
-    transparent: true,
-    opacity: 0.28,
-    depthWrite: false,
-  });
-
-  readonly blockedGhost = new THREE.MeshBasicMaterial({
-    color: '#ff5e7b',
-    transparent: true,
-    opacity: 0.34,
-    depthWrite: false,
-  });
-
-  readonly pipeBase = new THREE.MeshStandardMaterial({
-    color: '#202a30',
-    roughness: 0.56,
-    metalness: 0.46,
-  });
-
-  readonly pipeTrim = new THREE.MeshStandardMaterial({
-    color: '#657986',
-    roughness: 0.42,
-    metalness: 0.72,
-  });
-
-  readonly source = new THREE.MeshStandardMaterial({
-    color: '#f4eee0',
-    emissive: '#365d64',
-    emissiveIntensity: 0.45,
-    roughness: 0.32,
-    metalness: 0.5,
+  readonly rim = new THREE.MeshStandardMaterial({
+    color: '#c8d0d8',
+    roughness: 0.28,
+    metalness: 0.82,
   });
 
   readonly tankHull = new THREE.MeshStandardMaterial({
@@ -85,39 +50,28 @@ export class MaterialLibrary {
     clearcoat: 0.8,
   });
 
-  readonly enemyCore = new THREE.MeshStandardMaterial({
-    color: '#ff6d8d',
-    emissive: '#5f1022',
-    emissiveIntensity: 0.55,
-    roughness: 0.36,
-    metalness: 0.46,
+  readonly trim = new THREE.MeshStandardMaterial({
+    color: '#657986',
+    roughness: 0.42,
+    metalness: 0.72,
   });
 
-  readonly enemyArmor = new THREE.MeshStandardMaterial({
-    color: '#332a3f',
-    roughness: 0.55,
-    metalness: 0.45,
+  readonly carBody = new THREE.MeshPhysicalMaterial({
+    color: '#c8102e',
+    roughness: 0.12,
+    metalness: 0.82,
+    clearcoat: 1,
+    clearcoatRoughness: 0.06,
+    reflectivity: 0.9,
   });
 
-  readonly projectilePlayer = new THREE.MeshBasicMaterial({ color: '#b8fff1' });
-  readonly projectileEnemy = new THREE.MeshBasicMaterial({ color: '#ff5e7b' });
-  readonly worldMetal = new THREE.MeshStandardMaterial({ color: '#222d34', roughness: 0.62, metalness: 0.58 });
-  readonly hazard = new THREE.MeshStandardMaterial({ color: '#ffb02f', roughness: 0.4, metalness: 0.2 });
-  readonly drain = new THREE.MeshStandardMaterial({
-    color: '#9cf15f',
-    emissive: '#27580e',
-    emissiveIntensity: 0.5,
-    roughness: 0.28,
-    metalness: 0.34,
-  });
-  readonly water = new THREE.MeshBasicMaterial({
-    color: '#74e7ff',
-    transparent: true,
-    opacity: 0.88,
-    depthWrite: false,
+  readonly wheel = new THREE.MeshStandardMaterial({
+    color: '#15181c',
+    roughness: 0.9,
+    metalness: 0.15,
   });
 
-  private readonly pipeColors: Record<PipeColor, THREE.MeshStandardMaterial> = {
+  private readonly accents: Record<AccentColor, THREE.MeshStandardMaterial> = {
     cyan: new THREE.MeshStandardMaterial({
       color: '#42d9ff',
       emissive: '#0a4056',
@@ -148,33 +102,23 @@ export class MaterialLibrary {
     }),
   };
 
-  pipe(color: PipeColor): THREE.MeshStandardMaterial {
-    return this.pipeColors[color];
+  accent(color: AccentColor): THREE.MeshStandardMaterial {
+    return this.accents[color];
   }
 
   dispose(): void {
     const materials = [
       this.ground,
-      this.gridLine,
-      this.route,
-      this.previewRoute,
-      this.ghost,
-      this.blockedGhost,
-      this.pipeBase,
-      this.pipeTrim,
-      this.source,
+      this.carDark,
+      this.tire,
+      this.rim,
       this.tankHull,
       this.tankDark,
       this.glass,
-      this.enemyCore,
-      this.enemyArmor,
-      this.projectilePlayer,
-      this.projectileEnemy,
-      this.worldMetal,
-      this.hazard,
-      this.drain,
-      this.water,
-      ...Object.values(this.pipeColors),
+      this.trim,
+      this.carBody,
+      this.wheel,
+      ...Object.values(this.accents),
     ];
     for (const material of materials) material.dispose();
   }

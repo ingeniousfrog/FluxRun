@@ -2,8 +2,8 @@ export class AudioSystem {
   private context: AudioContext | null = null;
   private unlocked = false;
   private muted = false;
-  private ambience: OscillatorNode | null = null;
-  private ambienceGain: GainNode | null = null;
+  private engineOsc: OscillatorNode | null = null;
+  private engineGain: GainNode | null = null;
 
   constructor() {
     const unlock = () => {
@@ -28,8 +28,8 @@ export class AudioSystem {
 
   setMuted(muted: boolean): void {
     this.muted = muted;
-    if (this.ambienceGain) {
-      this.ambienceGain.gain.value = muted ? 0 : 0.018;
+    if (this.engineGain) {
+      this.engineGain.gain.value = muted ? 0 : 0.06;
     }
   }
 
@@ -38,101 +38,37 @@ export class AudioSystem {
     return this.muted;
   }
 
-  setPhaseAmbience(phase: 'build' | 'flow' | 'rush' | 'menu'): void {
-    if (!this.context || this.muted) return;
-    this.stopAmbience();
-    if (phase === 'menu') return;
-    const oscillator = this.context.createOscillator();
+  startEngine(): void {
+    if (!this.context || this.muted || this.engineOsc) return;
+    const osc = this.context.createOscillator();
     const gain = this.context.createGain();
-    oscillator.type = phase === 'rush' ? 'sawtooth' : phase === 'flow' ? 'triangle' : 'sine';
-    oscillator.frequency.value = phase === 'rush' ? 62 : phase === 'flow' ? 48 : 34;
-    gain.gain.value = phase === 'rush' ? 0.024 : phase === 'flow' ? 0.02 : 0.012;
-    oscillator.connect(gain).connect(this.context.destination);
-    oscillator.start();
-    this.ambience = oscillator;
-    this.ambienceGain = gain;
+    osc.type = 'sawtooth';
+    osc.frequency.value = 72;
+    gain.gain.value = 0.06;
+    osc.connect(gain).connect(this.context.destination);
+    osc.start();
+    this.engineOsc = osc;
+    this.engineGain = gain;
   }
 
-  valveOpen(): void {
-    this.blip(90, 520, 0.55, 'sawtooth', 0.1);
+  updateEngine(speed: number, throttling: boolean): void {
+    if (!this.engineOsc || !this.engineGain || this.muted) return;
+    const rpm = 70 + speed * 9 + (throttling ? 18 : 0);
+    this.engineOsc.frequency.setTargetAtTime(rpm, this.context!.currentTime, 0.08);
+    this.engineGain.gain.setTargetAtTime(0.04 + Math.min(0.05, speed / 80), this.context!.currentTime, 0.1);
   }
 
-  reservoirBoost(): void {
-    this.blip(280, 640, 0.12, 'triangle', 0.05);
-  }
-
-  startAmbience(): void {
-    this.setPhaseAmbience('flow');
-  }
-
-  stopAmbience(): void {
-    if (!this.ambience || !this.context) return;
-    const now = this.context.currentTime;
-    this.ambienceGain?.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
-    this.ambience.stop(now + 0.22);
-    this.ambience = null;
-    this.ambienceGain = null;
-  }
-
-  place(): void {
-    this.blip(180, 330, 0.08, 'square', 0.055);
-  }
-
-  rotate(): void {
-    this.blip(420, 260, 0.055, 'triangle', 0.045);
-  }
-
-  rush(): void {
-    this.blip(110, 720, 0.38, 'sawtooth', 0.08);
-    this.startAmbience();
-  }
-
-  shot(): void {
-    this.blip(520, 960, 0.08, 'triangle', 0.035);
-  }
-
-  hit(): void {
-    this.blip(140, 80, 0.14, 'sawtooth', 0.07);
-  }
-
-  combo(level: number): void {
-    this.blip(320 + level * 42, 780 + level * 58, 0.18, 'triangle', 0.06);
-  }
-
-  fail(): void {
-    this.blip(220, 64, 0.42, 'sawtooth', 0.1);
-    this.stopAmbience();
-  }
-
-  cleared(): void {
-    this.blip(260, 920, 0.5, 'triangle', 0.09);
-    this.stopAmbience();
-  }
-
-  pickup(index: number): void {
-    this.combo(index);
-  }
-
-  private blip(start: number, end: number, duration: number, type: OscillatorType, volume: number): void {
-    if (!this.context || this.context.state !== 'running') return;
-    if (this.muted) return;
-    const oscillator = this.context.createOscillator();
-    const gain = this.context.createGain();
-    const now = this.context.currentTime;
-
-    oscillator.type = type;
-    oscillator.frequency.setValueAtTime(Math.max(1, start), now);
-    oscillator.frequency.exponentialRampToValueAtTime(Math.max(1, end), now + Math.max(0.02, duration * 0.72));
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(volume, now + 0.018);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    oscillator.connect(gain).connect(this.context.destination);
-    oscillator.start(now);
-    oscillator.stop(now + duration + 0.03);
+  stopEngine(): void {
+    if (!this.engineOsc || !this.context) return;
+    this.engineOsc.stop();
+    this.engineOsc.disconnect();
+    this.engineGain?.disconnect();
+    this.engineOsc = null;
+    this.engineGain = null;
   }
 
   dispose(): void {
-    this.stopAmbience();
+    this.stopEngine();
     void this.context?.close();
     this.context = null;
   }

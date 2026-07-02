@@ -3,31 +3,16 @@
 interface ThreeGameDiagnostics {
   frame: number;
   elapsed: number;
-  phase:
-    | 'build'
-    | 'flow'
-    | 'rush_ready'
-    | 'rush'
-    | 'paused'
-    | 'failed'
-    | 'sector_cleared'
-    | 'relic_pick'
-    | 'run_cleared';
+  phase: 'countdown' | 'race' | 'finished' | 'paused';
   score: number;
-  routeLength: number;
-  routeEnergy: number;
-  multiplier: number;
-  health: number;
-  enemies: number;
-  projectiles: number;
-  board: {
-    occupied: number;
-    cols: number;
-    rows: number;
-  };
+  lap: number;
+  totalLaps: number;
+  speed: number;
+  grip: number;
+  onTrack: boolean;
   player: {
     position: { x: number; y: number; z: number };
-    speed: number;
+    heading: number;
   };
   renderer: {
     calls: number;
@@ -42,10 +27,9 @@ interface ThreeGameDiagnostics {
     height: number;
     dpr: number;
   };
-  sector: number;
-  runScore: number;
+  trackSeed: number;
+  trackLayout: string;
   isDaily: boolean;
-  relicCount: number;
 }
 
 interface Window {

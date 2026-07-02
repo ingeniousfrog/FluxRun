@@ -1,68 +1,71 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#080d12" />
-    <title>FluxRun</title>
+    <title>FluxRun — Racing</title>
   </head>
   <body>
     <main id="app">
-      <canvas id="game-canvas" aria-label="FluxRun playable game canvas"></canvas>
+      <canvas id="game-canvas" aria-label="FluxRun racing game canvas"></canvas>
       <section id="hud" aria-live="polite">
         <div id="left-hud">
           <div id="primary-hud">
             <div class="hud-metric phase-metric">
-              <span>Mode</span>
-              <strong id="phase-value">BUILD</strong>
+              <span>状态</span>
+              <strong id="phase-value">GO 3</strong>
             </div>
             <div class="hud-metric">
-              <span>Pipes</span>
-              <strong id="route-value">00</strong>
+              <span>圈数</span>
+              <strong id="route-value">1/3</strong>
             </div>
             <div class="hud-metric">
-              <span>Energy</span>
-              <strong id="energy-value">CLOSED</strong>
+              <span>天气</span>
+              <strong id="energy-value">CLEAR</strong>
             </div>
             <div class="hud-metric wide">
-              <span>Multiplier</span>
-              <strong id="combo-value">x1.00</strong>
+              <span>速度</span>
+              <strong id="combo-value">000 KM/H</strong>
             </div>
             <div class="hud-metric">
-              <span>Integrity</span>
-              <strong id="health-value">03</strong>
+              <span>最佳圈</span>
+              <strong id="health-value">--:--</strong>
             </div>
             <div class="hud-metric wide">
-              <span>Score</span>
-              <strong id="score-value">000000</strong>
+              <span>本圈</span>
+              <strong id="score-value">00:00.00</strong>
             </div>
-            <div id="status-line">BUILD, THEN OPEN VALVE</div>
+            <div id="status-line">准备发车</div>
           </div>
-          <div id="route-tradeoff">YOUR — · SHORT — · LOOP —</div>
+          <div id="route-tradeoff">WASD 驾驶 · 空格加速 · R 换赛道</div>
           <div id="meta-strip">
-            <span>BEST <strong id="meta-best">000000</strong></span>
-            <span>RUNS <strong id="meta-runs">0</strong></span>
-            <span id="meta-daily"></span>
+            <span>最佳 <strong id="meta-best">--:--</strong></span>
+            <span>场次 <strong id="meta-runs">0</strong></span>
           </div>
           <div id="guide-strip">
-            <strong id="sector-label">RUN</strong>
-            <strong id="guide-title">Connect source to drain</strong>
-            <span id="guide-text">Build at your pace. Water stays closed until the route reaches the drain and you press FLOW.</span>
-            <span id="narrative-line"></span>
+            <strong id="sector-label">TRACK</strong>
+            <strong id="guide-title">任意赛道 · 任意天气</strong>
+            <span id="guide-text">每局随机赛道与天气。雨雪雾会降低抓地力。</span>
           </div>
         </div>
         <div id="side-hud">
           <div class="piece-readout">
-            <span>Current pipe</span>
-            <strong id="piece-value">Straight</strong>
-            <small id="piece-help">PLACE lays this pipe. NEXT skips to another.</small>
+            <span>操控</span>
+            <strong id="piece-value">油门 W · 刹车 S</strong>
+            <small id="piece-help">Shift 加速 · 空格 手刹漂移 · P 暂停 · R 重开</small>
           </div>
-          <ol id="pipe-queue" aria-label="Next pipe queue"></ol>
-          <button id="next-action" class="hud-action secondary" type="button" data-action="next">NEXT PIPE</button>
-          <button id="view-action" class="hud-action secondary" type="button" data-action="view">2.5D VIEW</button>
-          <div id="relic-choices" aria-label="Relic choices"></div>
-          <ul id="relic-list"></ul>
           <button id="mute-action" class="hud-action" type="button" data-action="mute">SND ON</button>
+        </div>
+      </section>
+      <section id="dash-hud" aria-label="仪表盘">
+        <div id="minimap-panel" class="dash-panel">
+          <span class="dash-label">MAP</span>
+          <canvas id="minimap" width="168" height="168" aria-label="赛道小地图"></canvas>
+        </div>
+        <div id="speedometer-panel" class="dash-panel">
+          <span class="dash-label">SPEED</span>
+          <div id="speedometer"></div>
         </div>
       </section>
       <div id="touch-controls" aria-hidden="true">
@@ -70,14 +73,9 @@
           <div id="touch-knob"></div>
         </div>
         <div id="touch-actions">
-          <button type="button" data-action="rotate">ROT</button>
-          <button type="button" data-action="place">PLACE</button>
-          <button type="button" data-action="next">NEXT</button>
-          <button type="button" data-action="rush">FLOW</button>
-          <button type="button" data-action="view">VIEW</button>
           <button type="button" data-action="restart">RST</button>
         </div>
-        <button id="boost-button" type="button">FAST</button>
+        <button id="boost-button" type="button">BOOST</button>
       </div>
     </main>
     <script type="module" src="/src/main.ts"></script>
