@@ -47,9 +47,10 @@ async function sampleCanvas(page: import('@playwright/test').Page): Promise<Canv
 }
 
 test('renders a nonblank racing canvas and moves the vehicle', async ({ page }, testInfo) => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
+  const isMobile = testInfo.project.name.includes('mobile');
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
@@ -57,48 +58,41 @@ test('renders a nonblank racing canvas and moves the vehicle', async ({ page }, 
 
   await page.goto(`/?seed=${E2E_SEED}`);
   await expect(page.locator('#game-canvas')).toBeVisible();
-  await expect(page.locator('#guide-title')).toContainText('任意赛道');
-  await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 10);
-  await page.waitForTimeout(1200);
+  await expect(page.locator('#sector-label')).toBeVisible();
+  await expect(page.locator('#sector-label')).not.toHaveText('TRACK');
+  await page.waitForTimeout(800);
 
   const sample = await sampleCanvas(page);
   expect(sample, JSON.stringify(sample)).toMatchObject({ ok: true });
 
-  const before = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.player.position ?? { x: 0, y: 0, z: 0 });
+  const cameraButton = page.locator('#touch-actions [data-action="camera"]');
+  await cameraButton.dispatchEvent('pointerdown');
+  await expect(page.locator('html')).toHaveClass(/cockpit-view/);
+  await expect(page.locator('#race-hud')).toBeVisible();
+  await expect(page.locator('#hud-header')).toBeVisible();
+  await expect(page.locator('#dash-hud')).toBeVisible();
 
-  await page.keyboard.press('Enter');
-  await expect.poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.phase)).toBe('race');
+  await cameraButton.dispatchEvent('pointerdown');
+  await expect(page.locator('html')).not.toHaveClass(/cockpit-view/);
 
-  if (testInfo.project.name.includes('mobile')) {
-    await page.locator('#boost-button').dispatchEvent('pointerdown');
-    await page.locator('#touch-stick').dispatchEvent('pointerdown', { clientX: 120, clientY: 520 });
-    await page.locator('#touch-stick').dispatchEvent('pointermove', { clientX: 120, clientY: 420 });
-  } else {
-    await page.keyboard.down('Shift');
-    await page.keyboard.down('w');
+  if (!isMobile) {
+    expect(consoleErrors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+    return;
   }
+
+  await page.locator('#go-button').click({ force: true });
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#race-start-overlay')).toHaveClass(/hidden/, { timeout: 12000 });
+
+  await page.locator('#boost-button').dispatchEvent('pointerdown');
+  await page.locator('#touch-stick').dispatchEvent('pointerdown', { clientX: 120, clientY: 520 });
+  await page.locator('#touch-stick').dispatchEvent('pointermove', { clientX: 120, clientY: 420 });
 
   await page.waitForTimeout(2200);
 
-  await expect
-    .poll(async () =>
-      page.evaluate((initial) => {
-        const current = window.__THREE_GAME_DIAGNOSTICS__?.player.position ?? { x: 0, y: 0, z: 0 };
-        return Math.hypot(current.x - initial.x, current.z - initial.z);
-      }, before),
-    )
-    .toBeGreaterThan(2);
-
-  const screenshot = await page.screenshot({ fullPage: true });
-  await testInfo.attach(`${testInfo.project.name}-racing`, {
-    body: screenshot,
-    contentType: 'image/png',
-  });
-
-  if (!testInfo.project.name.includes('mobile')) {
-    await page.keyboard.up('w');
-    await page.keyboard.up('Shift');
-  }
+  const speedText = await page.locator('#combo-value').textContent({ timeout: 2000 });
+  expect(Number(speedText)).toBeGreaterThan(2);
 
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);

@@ -1,10 +1,12 @@
 import * as CANNON from 'cannon-es';
+import * as THREE from 'three';
 import { getBarrierEdgeOffset, TRACK_BARRIER_HALF_DEPTH } from '../track/trackLayout';
+import { findNearestSampleIndex } from '../track/trackNavigation';
 import type { GeneratedTrack, TrackSample } from '../track/types';
 
 const SEARCH_RADIUS = 24;
 /** Physics + visual half-width — boundary uses car edge, not center. */
-const CAR_LATERAL_EXTENT = 1.02;
+const CAR_LATERAL_EXTENT = 1.08;
 
 export type BoundaryState = {
   readonly lateral: number;
@@ -20,7 +22,7 @@ export class TrackBoundary {
   constructor(track: GeneratedTrack) {
     this.samples = track.samples;
     const edge = getBarrierEdgeOffset(track.width / 2);
-    this.limit = edge - CAR_LATERAL_EXTENT - TRACK_BARRIER_HALF_DEPTH - 0.1;
+    this.limit = edge - CAR_LATERAL_EXTENT - TRACK_BARRIER_HALF_DEPTH - 0.14;
   }
 
   enforce(chassis: CANNON.Body): BoundaryState {
@@ -39,20 +41,21 @@ export class TrackBoundary {
       const nz = sample.normal.z * sign;
       const overflow = absLat - this.limit;
 
-      chassis.position.x -= nx * overflow;
-      chassis.position.z -= nz * overflow;
+      chassis.position.x -= nx * overflow * 1.05;
+      chassis.position.z -= nz * overflow * 1.05;
 
       const vx = chassis.velocity.x;
       const vz = chassis.velocity.z;
       const vn = vx * nx + vz * nz;
       if (vn > 0) {
-        const bounce = 0.62;
+        const bounce = 0.28;
         chassis.velocity.x = vx - (1 + bounce) * vn * nx;
         chassis.velocity.z = vz - (1 + bounce) * vn * nz;
-        const speed = Math.hypot(chassis.velocity.x, chassis.velocity.z);
-        if (speed > 4) {
-          chassis.velocity.x *= 0.88;
-          chassis.velocity.z *= 0.88;
+        const postSpeed = Math.hypot(chassis.velocity.x, chassis.velocity.z);
+        if (postSpeed > 5) {
+          const damp = THREE.MathUtils.lerp(0.55, 0.72, Math.min(1, postSpeed / 24));
+          chassis.velocity.x *= damp;
+          chassis.velocity.z *= damp;
         }
       }
     }
@@ -65,23 +68,7 @@ export class TrackBoundary {
   }
 
   private findNearest(x: number, z: number): { sample: TrackSample } {
-    let bestIndex = this.nearestIndex;
-    let bestDistSq = Infinity;
-    const start = Math.max(0, this.nearestIndex - SEARCH_RADIUS);
-    const end = Math.min(this.samples.length - 1, this.nearestIndex + SEARCH_RADIUS);
-
-    for (let i = start; i <= end; i += 1) {
-      const sample = this.samples[i];
-      const dx = x - sample.position.x;
-      const dz = z - sample.position.z;
-      const distSq = dx * dx + dz * dz;
-      if (distSq < bestDistSq) {
-        bestDistSq = distSq;
-        bestIndex = i;
-      }
-    }
-
-    this.nearestIndex = bestIndex;
-    return { sample: this.samples[bestIndex] };
+    this.nearestIndex = findNearestSampleIndex(this.samples, x, z, this.nearestIndex, SEARCH_RADIUS);
+    return { sample: this.samples[this.nearestIndex] };
   }
 }

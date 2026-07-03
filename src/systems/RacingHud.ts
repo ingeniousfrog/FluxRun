@@ -1,6 +1,7 @@
 import type { LapSnapshot } from '../systems/LapSystem';
-import { RaceMinimap } from '../systems/RaceMinimap';
+import { RaceMinimap, type MinimapRacer } from '../systems/RaceMinimap';
 import { SpeedometerHud } from '../systems/SpeedometerHud';
+import { StartSequenceOverlay } from '../systems/StartSequenceOverlay';
 import type { GeneratedTrack, RacePhase, TrackLayout } from '../track/types';
 import type { WeatherPreset } from '../track/types';
 
@@ -13,13 +14,10 @@ export class RacingHud {
   private readonly timeValue = this.require('#score-value');
   private readonly statusLine = this.require('#status-line');
   private readonly trackLabel = this.require('#sector-label');
-  private readonly guideTitle = this.require('#guide-title');
-  private readonly guideText = this.require('#guide-text');
-  private readonly metaBest = this.require('#meta-best');
-  private readonly metaRuns = this.require('#meta-runs');
   private readonly muteButton = this.require('#mute-action');
   private readonly minimap: RaceMinimap;
   private readonly speedometer: SpeedometerHud;
+  private readonly startOverlay: StartSequenceOverlay;
 
   constructor() {
     const minimapCanvas = document.querySelector<HTMLCanvasElement>('#minimap');
@@ -27,14 +25,20 @@ export class RacingHud {
     if (!minimapCanvas || !speedoRoot) throw new Error('Missing dashboard HUD elements');
     this.minimap = new RaceMinimap(minimapCanvas);
     this.speedometer = new SpeedometerHud(speedoRoot);
+    this.startOverlay = new StartSequenceOverlay();
+  }
+
+  onRaceGo(callback: () => void): void {
+    this.startOverlay.onGo(callback);
   }
 
   setTrack(track: GeneratedTrack): void {
     this.minimap.setTrack(track);
+    this.startOverlay.setTrackName(track.name);
   }
 
   setMuted(muted: boolean): void {
-    this.muteButton.textContent = muted ? 'SND OFF' : 'SND ON';
+    this.muteButton.textContent = muted ? 'MUT' : 'SND';
   }
 
   render(input: {
@@ -53,31 +57,37 @@ export class RacingHud {
     carX: number;
     carZ: number;
     heading: number;
+    racePosition: number;
+    totalRacers: number;
+    cameraMode?: 'chase' | 'cockpit';
+    opponents: ReadonlyArray<MinimapRacer>;
   }): void {
-    const phaseLabel =
-      input.phase === 'countdown'
-        ? `GO ${Math.ceil(input.countdown)}`
-        : input.phase === 'race'
-          ? 'RACE'
-          : input.phase === 'finished'
-            ? 'FINISH'
-            : 'PAUSE';
+    const racing = input.phase === 'race' || input.phase === 'finished';
+    document.documentElement.classList.toggle('cockpit-view', input.cameraMode === 'cockpit');
+    this.phaseValue.textContent = racing
+      ? `${input.racePosition}/${input.totalRacers}`
+      : input.phase === 'countdown'
+        ? String(Math.ceil(input.countdown))
+        : input.phase === 'ready'
+          ? 'RDY'
+          : '--';
 
-    this.phaseValue.textContent = phaseLabel;
     this.lapValue.textContent = `${Math.min(input.drive.lap + 1, input.totalLaps)}/${input.totalLaps}`;
     this.weatherValue.textContent = input.weather.label;
-    this.speedValue.textContent = `${Math.round(input.drive.speed * 3.6)} KM/H`;
+    const kmh = Math.round(input.drive.speed * 3.6);
+    this.speedValue.textContent = String(kmh).padStart(3, '0');
     this.bestValue.textContent = input.bestLap ? this.formatTime(input.bestLap) : '--:--';
     this.timeValue.textContent = this.formatTime(input.lapTime);
     this.statusLine.textContent = input.message;
-    this.trackLabel.textContent = `${input.trackName.toUpperCase()} · ${input.layout.toUpperCase()}`;
-    this.guideTitle.textContent = '任意赛道 · 任意天气';
-    this.guideText.textContent = 'W 油门 · S 刹车 · A/D 转向 · Shift 加速 · 空格 手刹漂移';
-    this.metaBest.textContent = input.personalBest ? this.formatTime(input.personalBest) : '--:--';
-    this.metaRuns.textContent = String(input.runs);
+    this.trackLabel.textContent = input.trackName.toUpperCase();
 
-    this.minimap.render(input.carX, input.carZ, input.heading);
+    this.startOverlay.update(input.phase, input.countdown);
+    this.minimap.render(input.carX, input.carZ, input.heading, input.opponents);
     this.speedometer.render(input.drive.speed);
+
+    void input.layout;
+    void input.runs;
+    void input.personalBest;
   }
 
   private formatTime(seconds: number): string {

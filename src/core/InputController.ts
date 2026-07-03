@@ -13,6 +13,7 @@ type QueuedActions = {
   restart: number;
   pause: number;
   mute: number;
+  camera: number;
 };
 
 export class InputController {
@@ -34,6 +35,7 @@ export class InputController {
     restart: 0,
     pause: 0,
     mute: 0,
+    camera: 0,
   };
 
   private readonly onKeyDown = (event: KeyboardEvent) => {
@@ -170,6 +172,10 @@ export class InputController {
     return this.consume('mute');
   }
 
+  consumeCameraToggle(): boolean {
+    return this.consume('camera');
+  }
+
   dispose(): void {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
@@ -194,6 +200,7 @@ export class InputController {
     if (action === 'pause') this.queued.pause += 1;
     if (action === 'mute') this.queued.mute += 1;
     if (action === 'rush') this.queued.rush += 1;
+    if (action === 'camera') this.queued.camera += 1;
   };
 
   private queueKeyAction(code: string): void {
@@ -201,6 +208,7 @@ export class InputController {
     if (code === 'KeyR') this.queued.restart += 1;
     if (code === 'KeyP' || code === 'Escape') this.queued.pause += 1;
     if (code === 'KeyM') this.queued.mute += 1;
+    if (code === 'KeyV') this.queued.camera += 1;
   }
 
   private consume(key: keyof QueuedActions): boolean {
@@ -220,6 +228,7 @@ export class InputController {
       'KeyR',
       'KeyP',
       'KeyM',
+      'KeyV',
       'Escape',
     ].includes(code);
   }

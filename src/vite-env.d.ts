@@ -3,7 +3,7 @@
 interface ThreeGameDiagnostics {
   frame: number;
   elapsed: number;
-  phase: 'countdown' | 'race' | 'finished' | 'paused';
+  phase: 'ready' | 'countdown' | 'race' | 'finished' | 'paused';
   score: number;
   lap: number;
   totalLaps: number;
@@ -29,6 +29,7 @@ interface ThreeGameDiagnostics {
   };
   trackSeed: number;
   trackLayout: string;
+  cameraMode: 'chase' | 'cockpit';
   isDaily: boolean;
 }
 

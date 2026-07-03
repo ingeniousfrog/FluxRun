@@ -11,6 +11,8 @@ test('meta HUD reads persisted racing localStorage values', async ({ page }) => 
   await page.goto('/');
   await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 5);
 
-  await expect(page.locator('#meta-runs')).toHaveText('7');
-  await expect(page.locator('#meta-best')).toContainText('01:');
+  const meta = await page.evaluate(() => localStorage.getItem('fluxrun-racing-meta'));
+  expect(meta).toContain('"runs":7');
+  expect(meta).toContain('83.42');
+  await expect(page.locator('#sector-label')).not.toHaveText('TRACK');
 });

@@ -1,4 +1,6 @@
+import * as THREE from 'three';
 import type { GeneratedTrack, TrackSample } from '../track/types';
+import { findNearestSampleIndex } from '../track/trackNavigation';
 
 export type LapSnapshot = {
   readonly progress: number;
@@ -17,10 +19,10 @@ export class LapSystem {
   private readonly totalLaps: number;
 
   private lap = 0;
-  private lapProgress = 0;
   private finished = false;
   private lastArcS = 0;
-  private crossedStart = false;
+  /** True after the first forward crossing of the start/finish line. */
+  private crossedStartLine = false;
   private nearestIndex = 0;
   private lateral = 0;
   private onTrack = true;
@@ -32,68 +34,75 @@ export class LapSystem {
     this.totalLaps = totalLaps;
   }
 
-  reset(): void {
+  reset(gridIndex = 0): void {
     this.lap = 0;
-    this.lapProgress = 0;
     this.finished = false;
-    this.lastArcS = 0;
-    this.crossedStart = false;
-    this.nearestIndex = 0;
+    this.crossedStartLine = false;
+    this.nearestIndex = gridIndex;
     this.lateral = 0;
     this.onTrack = true;
+    const sample = this.samples[gridIndex];
+    this.lastArcS = sample?.s ?? 0;
   }
 
   update(x: number, z: number, speed: number): LapSnapshot {
     const nearest = this.findNearest(x, z);
-    this.nearestIndex = nearest.index;
-    this.lateral = nearest.lateral;
-    this.onTrack = nearest.dist <= this.halfWidth + 0.8;
+    const rawS = nearest.sample.s;
 
-    if (this.lap === 0 && !this.crossedStart && nearest.sample.s > this.trackLength * 0.05) {
-      this.crossedStart = true;
-    }
+    const crossedFinishLine =
+      this.lastArcS > this.trackLength * 0.85 && rawS < this.trackLength * 0.15;
 
-    if (this.crossedStart && this.lastArcS > this.trackLength * 0.85 && nearest.sample.s < this.trackLength * 0.15) {
-      this.lap += 1;
-      if (this.lap >= this.totalLaps) {
-        this.finished = true;
-        this.lapProgress = 1;
+    if (crossedFinishLine) {
+      if (this.crossedStartLine) {
+        this.lap += 1;
+        if (this.lap >= this.totalLaps) {
+          this.finished = true;
+        }
       }
+      this.crossedStartLine = true;
     }
 
-    this.lastArcS = nearest.sample.s;
-    this.lapProgress = nearest.sample.s / this.trackLength;
+    this.lastArcS = rawS;
+
+    const lapProgress = this.computeLapProgress(rawS);
 
     return {
-      progress: (this.lap + this.lapProgress) / this.totalLaps,
+      progress: (this.lap + lapProgress) / this.totalLaps,
       speed,
       lateral: this.lateral,
       lap: this.lap,
-      lapProgress: this.lapProgress,
+      lapProgress,
       finished: this.finished,
       onTrack: this.onTrack,
     };
   }
 
-  private findNearest(x: number, z: number): { index: number; sample: TrackSample; dist: number; lateral: number } {
-    let bestIndex = this.nearestIndex;
-    let bestDistSq = Infinity;
-    const start = Math.max(0, this.nearestIndex - 14);
-    const end = Math.min(this.samples.length - 1, this.nearestIndex + 14);
+  /** Arc-length progress on the current lap in [0, 1), independent of car heading. */
+  private computeLapProgress(rawS: number): number {
+    if (this.finished) return 1;
 
-    for (let i = start; i <= end; i += 1) {
-      const sample = this.samples[i];
-      const dx = x - sample.position.x;
-      const dz = z - sample.position.z;
-      const distSq = dx * dx + dz * dz;
-      if (distSq < bestDistSq) {
-        bestDistSq = distSq;
-        bestIndex = i;
-      }
+    // Before the first start-line crossing, keep arc progress near the grid.
+    if (this.lap === 0 && !this.crossedStartLine && rawS > this.trackLength * 0.5) {
+      return 0;
     }
 
-    const sample = this.samples[bestIndex];
+    if (this.lap === 0 && !this.crossedStartLine) {
+      return THREE.MathUtils.clamp(rawS / this.trackLength, 0, 0.99);
+    }
+
+    return rawS / this.trackLength;
+  }
+
+  private findNearest(x: number, z: number): { index: number; sample: TrackSample; dist: number; lateral: number } {
+    this.nearestIndex = findNearestSampleIndex(this.samples, x, z, this.nearestIndex, 28, {
+      forwardOnly: true,
+    });
+    const sample = this.samples[this.nearestIndex];
+    const dx = x - sample.position.x;
+    const dz = z - sample.position.z;
     const lateral = (x - sample.position.x) * sample.normal.x + (z - sample.position.z) * sample.normal.z;
-    return { index: bestIndex, sample, dist: Math.sqrt(bestDistSq), lateral };
+    this.lateral = lateral;
+    this.onTrack = Math.hypot(dx, dz) <= this.halfWidth + 0.8;
+    return { index: this.nearestIndex, sample, dist: Math.hypot(dx, dz), lateral };
   }
 }

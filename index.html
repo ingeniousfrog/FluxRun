@@ -3,79 +3,69 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#080d12" />
+    <meta name="theme-color" content="#0a0c10" />
     <title>FluxRun — Racing</title>
   </head>
   <body>
     <main id="app">
       <canvas id="game-canvas" aria-label="FluxRun racing game canvas"></canvas>
-      <section id="hud" aria-live="polite">
-        <div id="left-hud">
-          <div id="primary-hud">
-            <div class="hud-metric phase-metric">
-              <span>状态</span>
-              <strong id="phase-value">GO 3</strong>
-            </div>
-            <div class="hud-metric">
-              <span>圈数</span>
-              <strong id="route-value">1/3</strong>
-            </div>
-            <div class="hud-metric">
-              <span>天气</span>
-              <strong id="energy-value">CLEAR</strong>
-            </div>
-            <div class="hud-metric wide">
-              <span>速度</span>
-              <strong id="combo-value">000 KM/H</strong>
-            </div>
-            <div class="hud-metric">
-              <span>最佳圈</span>
-              <strong id="health-value">--:--</strong>
-            </div>
-            <div class="hud-metric wide">
-              <span>本圈</span>
-              <strong id="score-value">00:00.00</strong>
-            </div>
-            <div id="status-line">准备发车</div>
+
+      <section id="race-hud" aria-live="polite">
+        <header id="hud-header">
+          <div class="hud-pill position-pill">
+            <span>POS</span>
+            <strong id="phase-value">1/4</strong>
           </div>
-          <div id="route-tradeoff">WASD 驾驶 · 空格加速 · R 换赛道</div>
-          <div id="meta-strip">
-            <span>最佳 <strong id="meta-best">--:--</strong></span>
-            <span>场次 <strong id="meta-runs">0</strong></span>
+          <div id="sector-label" class="hud-track-name">TRACK</div>
+          <div class="hud-pill lap-pill">
+            <span>LAP</span>
+            <strong id="route-value">1/3</strong>
           </div>
-          <div id="guide-strip">
-            <strong id="sector-label">TRACK</strong>
-            <strong id="guide-title">任意赛道 · 任意天气</strong>
-            <span id="guide-text">每局随机赛道与天气。雨雪雾会降低抓地力。</span>
+        </header>
+
+        <div id="status-line" class="hud-toast">准备发车</div>
+
+        <footer id="dash-hud">
+          <div id="minimap-panel" class="dash-card">
+            <canvas id="minimap" width="168" height="168" aria-label="赛道小地图"></canvas>
           </div>
-        </div>
-        <div id="side-hud">
-          <div class="piece-readout">
-            <span>操控</span>
-            <strong id="piece-value">油门 W · 刹车 S</strong>
-            <small id="piece-help">Shift 加速 · 空格 手刹漂移 · P 暂停 · R 重开</small>
+          <div id="hud-center-stats">
+            <div class="stat-chip"><span>天气</span><strong id="energy-value">CLEAR</strong></div>
+            <div class="stat-chip"><span>最佳圈</span><strong id="health-value">--:--</strong></div>
+            <div class="stat-chip wide"><span>本圈</span><strong id="score-value">00:00.00</strong></div>
           </div>
-          <button id="mute-action" class="hud-action" type="button" data-action="mute">SND ON</button>
-        </div>
+          <div id="speedometer-panel" class="dash-card">
+            <div id="speedometer"></div>
+            <strong id="combo-value" class="speed-digital">000</strong>
+          </div>
+        </footer>
+
+        <button id="mute-action" class="hud-icon-btn" type="button" data-action="mute" aria-label="静音">SND</button>
       </section>
-      <section id="dash-hud" aria-label="仪表盘">
-        <div id="minimap-panel" class="dash-panel">
-          <span class="dash-label">MAP</span>
-          <canvas id="minimap" width="168" height="168" aria-label="赛道小地图"></canvas>
-        </div>
-        <div id="speedometer-panel" class="dash-panel">
-          <span class="dash-label">SPEED</span>
-          <div id="speedometer"></div>
-        </div>
-      </section>
+
       <div id="touch-controls" aria-hidden="true">
-        <div id="touch-stick">
-          <div id="touch-knob"></div>
-        </div>
+        <div id="touch-stick"><div id="touch-knob"></div></div>
         <div id="touch-actions">
           <button type="button" data-action="restart">RST</button>
+          <button type="button" data-action="camera">CAM</button>
         </div>
         <button id="boost-button" type="button">BOOST</button>
+      </div>
+
+      <div id="race-start-overlay" class="hidden" aria-live="polite">
+        <div id="ready-panel">
+          <p class="ready-kicker">FLUXRUN GRAND PRIX</p>
+          <h2 id="ready-title">READY?</h2>
+          <p id="ready-track-name">Track</p>
+          <button id="go-button" type="button">GO</button>
+          <p class="ready-hint">W 油门 · S 刹车/倒车 · V 视角 · Shift 加速</p>
+        </div>
+        <div id="lights-panel" class="hidden" aria-label="发车信号灯">
+          <div class="start-light red"></div>
+          <div class="start-light red"></div>
+          <div class="start-light red"></div>
+        </div>
+        <div id="countdown-digit" class="hidden"></div>
       </div>
     </main>
     <script type="module" src="/src/main.ts"></script>

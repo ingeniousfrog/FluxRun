@@ -31,23 +31,35 @@ function createCanvas(width: number, height: number): HTMLCanvasElement | null {
 }
 
 export function createAsphaltTexture(): THREE.Texture {
-  const size = 256;
+  const size = 512;
   const canvas = createCanvas(size, size);
-  if (!canvas) return solidTexture('#353b42', 6, 24);
+  if (!canvas) return solidTexture('#2a2e34', 8, 32);
 
   const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#353b42';
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, '#2e333a');
+  grad.addColorStop(0.5, '#383e46');
+  grad.addColorStop(1, '#2a2f36');
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
-  noise(ctx, size, size, 28, 0.35);
-  for (let i = 0; i < 1200; i += 1) {
-    const g = 40 + Math.random() * 30;
-    ctx.fillStyle = `rgba(${g},${g + 2},${g + 4},0.12)`;
-    ctx.fillRect(Math.random() * size, Math.random() * size, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  noise(ctx, size, size, 18, 0.28);
+  for (let i = 0; i < 2000; i += 1) {
+    const g = 35 + Math.random() * 40;
+    ctx.fillStyle = `rgba(${g},${g + 3},${g + 6},0.1)`;
+    ctx.fillRect(Math.random() * size, Math.random() * size, 1 + Math.random() * 3, 1 + Math.random() * 2);
+  }
+  for (let y = 0; y < size; y += 32) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.015)';
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(size, y);
+    ctx.stroke();
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(6, 24);
+  tex.repeat.set(8, 32);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   return tex;
 }
 

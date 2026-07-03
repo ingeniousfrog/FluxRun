@@ -34,6 +34,17 @@ describe('track generator', () => {
       expect(sample.tangent.y).toBeCloseTo(0, 5);
     }
   });
+
+  it('produces varied random race maps instead of falling back to Safe Oval', () => {
+    const tracks = Array.from({ length: 16 }, (_, index) => generateTrack(index + 1));
+    const names = new Set(tracks.map((track) => track.name));
+    const layouts = new Set(tracks.map((track) => track.layout));
+    const fallbackCount = tracks.filter((track) => track.name === 'Safe Oval').length;
+
+    expect(names.size).toBeGreaterThan(3);
+    expect(layouts.size).toBeGreaterThan(1);
+    expect(fallbackCount).toBeLessThan(4);
+  });
 });
 
 describe('track mesh builder', () => {

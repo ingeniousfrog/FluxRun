@@ -10,7 +10,7 @@ const TRACK_NAMES: Record<TrackLayout, string[]> = {
 const SAMPLE_COUNT = 256;
 const TRACK_HALF_WIDTH = 5;
 const MIN_CORNER_RADIUS = 22;
-const CLOSE_TOLERANCE = 5;
+const VALIDATION_MIN_RADIUS = 3.2;
 
 type Rng = () => number;
 
@@ -143,16 +143,7 @@ function buildTechnicalPoints(rng: Rng): THREE.Vector3[] {
 }
 
 function closeLoop(points: THREE.Vector3[]): THREE.Vector3[] {
-  const closed = points.map((p) => p.clone());
-  const last = closed[closed.length - 1];
-  const first = closed[0];
-  const gap = last.distanceTo(first);
-  if (gap > CLOSE_TOLERANCE) {
-    closed.push(first.clone());
-  } else {
-    last.copy(first);
-  }
-  return closed;
+  return points.map((p) => p.clone());
 }
 
 function segmentsIntersect2D(
@@ -187,10 +178,13 @@ function segmentsIntersect2D(
 
 function hasSelfIntersection(points: THREE.Vector3[]): boolean {
   const n = points.length;
-  for (let i = 0; i < n - 1; i += 1) {
-    for (let j = i + 2; j < n - 1; j += 1) {
-      if (i === 0 && j === n - 2) continue;
-      if (segmentsIntersect2D(points[i], points[i + 1], points[j], points[j + 1])) {
+  for (let i = 0; i < n; i += 1) {
+    const iNext = (i + 1) % n;
+    for (let j = i + 1; j < n; j += 1) {
+      const jNext = (j + 1) % n;
+      const adjacent = Math.abs(i - j) <= 1 || (i === 0 && j === n - 1);
+      if (adjacent) continue;
+      if (segmentsIntersect2D(points[i], points[iNext], points[j], points[jNext])) {
         return true;
       }
     }
@@ -260,7 +254,7 @@ function buildControlPoints(layout: TrackLayout, rng: Rng): THREE.Vector3[] {
 function validateTrack(curve: THREE.CatmullRomCurve3, controlPoints: THREE.Vector3[]): boolean {
   if (controlPoints.length < 6) return false;
   if (hasSelfIntersection(controlPoints)) return false;
-  if (estimateMinRadius(curve) < MIN_CORNER_RADIUS) return false;
+  if (estimateMinRadius(curve) < VALIDATION_MIN_RADIUS) return false;
   if (curve.getLength() < 120) return false;
   return true;
 }
@@ -324,6 +318,19 @@ export function createTrackCurve(track: GeneratedTrack): THREE.CatmullRomCurve3 
 
 export function randomSeed(): number {
   return Math.floor(Math.random() * 1_000_000_000);
+}
+
+/** Pick a new procedural seed, optionally avoiding the current one (R key / post-race). */
+export function randomRaceSeed(exclude?: number): number {
+  for (let i = 0; i < 24; i += 1) {
+    const seed = randomSeed();
+    if (seed !== exclude) return seed;
+  }
+  return randomSeed();
+}
+
+export function nextRaceSeed(): number {
+  return randomRaceSeed();
 }
 
 export function parseRaceSeedFromUrl(): number {

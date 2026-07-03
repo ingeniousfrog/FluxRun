@@ -58,12 +58,23 @@ export class MaterialLibrary {
 
   readonly carBody = new THREE.MeshPhysicalMaterial({
     color: '#c8102e',
-    roughness: 0.12,
-    metalness: 0.82,
+    roughness: 0.08,
+    metalness: 0.88,
     clearcoat: 1,
-    clearcoatRoughness: 0.06,
-    reflectivity: 0.9,
+    clearcoatRoughness: 0.04,
+    reflectivity: 0.95,
   });
+
+  carPaint(color: string): THREE.MeshPhysicalMaterial {
+    return new THREE.MeshPhysicalMaterial({
+      color,
+      roughness: 0.08,
+      metalness: 0.88,
+      clearcoat: 1,
+      clearcoatRoughness: 0.04,
+      reflectivity: 0.95,
+    });
+  }
 
   readonly wheel = new THREE.MeshStandardMaterial({
     color: '#15181c',

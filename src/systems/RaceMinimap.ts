@@ -2,6 +2,14 @@ import type { GeneratedTrack } from '../track/types';
 
 type Bounds = { minX: number; maxX: number; minZ: number; maxZ: number };
 
+export type MinimapRacer = {
+  readonly x: number;
+  readonly z: number;
+  readonly heading: number;
+  readonly color: string;
+  readonly isPlayer?: boolean;
+};
+
 export class RaceMinimap {
   private readonly ctx: CanvasRenderingContext2D;
   private centerPath: Float32Array | null = null;
@@ -42,7 +50,12 @@ export class RaceMinimap {
     };
   }
 
-  render(carX: number, carZ: number, heading: number): void {
+  render(
+    carX: number,
+    carZ: number,
+    heading: number,
+    opponents: ReadonlyArray<MinimapRacer> = [],
+  ): void {
     if (!this.centerPath || !this.bounds) return;
 
     const { ctx, size } = this;
@@ -58,7 +71,7 @@ export class RaceMinimap {
 
     ctx.clearRect(0, 0, size, size);
 
-    ctx.fillStyle = 'rgba(8, 13, 18, 0.82)';
+    ctx.fillStyle = 'rgba(8, 13, 18, 0.88)';
     ctx.strokeStyle = 'rgba(66, 217, 255, 0.35)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -78,26 +91,42 @@ export class RaceMinimap {
     ctx.closePath();
     ctx.stroke();
 
-    const [cx, cy] = toScreen(carX, carZ);
+    for (const opponent of opponents) {
+      this.drawRacer(toScreen(opponent.x, opponent.z), opponent.heading, opponent.color, false);
+    }
+
+    this.drawRacer(toScreen(carX, carZ), heading, '#ff4d57', true);
+  }
+
+  private drawRacer(
+    pos: [number, number],
+    heading: number,
+    color: string,
+    isPlayer: boolean,
+  ): void {
+    const [cx, cy] = pos;
+    const { ctx } = this;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(heading);
-    ctx.fillStyle = '#ff4d57';
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1.2;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = isPlayer ? '#fff' : 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = isPlayer ? 1.4 : 1;
     ctx.beginPath();
-    ctx.moveTo(0, -7);
-    ctx.lineTo(5, 6);
-    ctx.lineTo(0, 3);
-    ctx.lineTo(-5, 6);
+    ctx.moveTo(0, -6);
+    ctx.lineTo(4.5, 5);
+    ctx.lineTo(0, 2.5);
+    ctx.lineTo(-4.5, 5);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
     ctx.restore();
 
-    ctx.fillStyle = 'rgba(156, 241, 95, 0.95)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 2.4, 0, Math.PI * 2);
-    ctx.fill();
+    if (isPlayer) {
+      ctx.fillStyle = 'rgba(156, 241, 95, 0.95)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }

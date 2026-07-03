@@ -7,7 +7,7 @@ import {
 } from './trackLayout';
 import type { GeneratedTrack, TrackSample } from './types';
 
-const BARRIER_HEIGHT = 0.72;
+const BARRIER_HEIGHT = 0.52;
 
 export type TrackMeshes = {
   readonly root: THREE.Group;
@@ -24,12 +24,13 @@ function buildRibbon(
   halfWidth: number,
   yOffset: number,
   uvScale = 1,
+  elevationFn?: (index: number, sample: TrackSample) => number,
 ): { positions: Float32Array; uvs: Float32Array; indices: Uint32Array } {
   const count = samples.length;
   const vertexCount = count * 2;
   const positions = new Float32Array(vertexCount * 3);
   const uvs = new Float32Array(vertexCount * 2);
-  const indices = new Uint32Array((count - 1) * 6);
+  const indices = new Uint32Array(count * 6);
 
   for (let i = 0; i < count; i += 1) {
     const sample = samples[i];
@@ -38,11 +39,14 @@ function buildRibbon(
     const li = i * 2;
     const ri = i * 2 + 1;
 
+    const elev = elevationFn ? elevationFn(i, sample) : 0;
+    const y = sample.position.y + yOffset + elev;
+
     positions[li * 3] = left.x;
-    positions[li * 3 + 1] = left.y + yOffset;
+    positions[li * 3 + 1] = y;
     positions[li * 3 + 2] = left.z;
     positions[ri * 3] = right.x;
-    positions[ri * 3 + 1] = right.y + yOffset;
+    positions[ri * 3 + 1] = y;
     positions[ri * 3 + 2] = right.z;
 
     const v = (i / count) * uvScale;
@@ -53,11 +57,12 @@ function buildRibbon(
   }
 
   let indexOffset = 0;
-  for (let i = 0; i < count - 1; i += 1) {
+  for (let i = 0; i < count; i += 1) {
+    const next = (i + 1) % count;
     const a = i * 2;
     const b = i * 2 + 1;
-    const c = i * 2 + 2;
-    const d = i * 2 + 3;
+    const c = next * 2;
+    const d = next * 2 + 1;
     indices[indexOffset++] = a;
     indices[indexOffset++] = c;
     indices[indexOffset++] = b;
@@ -75,8 +80,9 @@ function createRibbonMesh(
   material: THREE.Material,
   yOffset = 0.08,
   uvScale = 1,
+  elevationFn?: (index: number, sample: TrackSample) => number,
 ): THREE.Mesh {
-  const { positions, uvs, indices } = buildRibbon(samples, halfWidth, yOffset, uvScale);
+  const { positions, uvs, indices } = buildRibbon(samples, halfWidth, yOffset, uvScale, elevationFn);
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
@@ -117,13 +123,14 @@ function buildCurbSide(
     colors[li + 3] = c.r; colors[li + 4] = c.g; colors[li + 5] = c.b;
   }
 
-  const indices = new Uint32Array((count - 1) * 6);
+  const indices = new Uint32Array(count * 6);
   let o = 0;
-  for (let i = 0; i < count - 1; i += 1) {
+  for (let i = 0; i < count; i += 1) {
+    const next = (i + 1) % count;
     const a = i * 2;
     const b = i * 2 + 1;
-    const c = i * 2 + 2;
-    const d = i * 2 + 3;
+    const c = next * 2;
+    const d = next * 2 + 1;
     indices[o++] = a; indices[o++] = c; indices[o++] = b;
     indices[o++] = b; indices[o++] = c; indices[o++] = d;
   }
@@ -157,9 +164,9 @@ function buildConcreteWallSide(
   side: 1 | -1,
 ): THREE.BufferGeometry {
   const count = samples.length;
-  const inner = edge - 0.22;
-  const outer = edge + 0.08;
-  const height = 1.05;
+  const inner = edge - 0.14;
+  const outer = edge + 0.06;
+  const height = 0.78;
   const bottom = new Float32Array(count * 2 * 3);
   const top = new Float32Array(count * 2 * 3);
 
@@ -178,12 +185,13 @@ function buildConcreteWallSide(
   positions.set(bottom, 0);
   positions.set(top, bottom.length);
 
-  const indices = new Uint32Array((count - 1) * 12);
+  const indices = new Uint32Array(count * 12);
   let o = 0;
-  for (let i = 0; i < count - 1; i += 1) {
-    const b0 = i * 2; const b1 = i * 2 + 1; const b2 = i * 2 + 2; const b3 = i * 2 + 3;
+  for (let i = 0; i < count; i += 1) {
+    const next = (i + 1) % count;
+    const b0 = i * 2; const b1 = i * 2 + 1; const b2 = next * 2; const b3 = next * 2 + 1;
     const t0 = count * 2 + i * 2; const t1 = count * 2 + i * 2 + 1;
-    const t2 = count * 2 + i * 2 + 2; const t3 = count * 2 + i * 2 + 3;
+    const t2 = count * 2 + next * 2; const t3 = count * 2 + next * 2 + 1;
     indices[o++] = b0; indices[o++] = b2; indices[o++] = t0;
     indices[o++] = b2; indices[o++] = t2; indices[o++] = t0;
     indices[o++] = b1; indices[o++] = t3; indices[o++] = b3;
@@ -200,9 +208,9 @@ function buildConcreteWallSide(
 function buildConcreteWalls(samples: ReadonlyArray<TrackSample>, halfWidth: number): THREE.Group {
   const edge = getBarrierEdgeOffset(halfWidth);
   const mat = new THREE.MeshStandardMaterial({
-    color: '#8a9098',
-    roughness: 0.88,
-    metalness: 0.08,
+    color: '#9aa3ad',
+    roughness: 0.82,
+    metalness: 0.12,
     side: THREE.DoubleSide,
   });
   const group = new THREE.Group();
@@ -214,17 +222,17 @@ function buildConcreteWalls(samples: ReadonlyArray<TrackSample>, halfWidth: numb
 function buildArmcoBarriers(samples: ReadonlyArray<TrackSample>, halfWidth: number): THREE.Group {
   const group = new THREE.Group();
   const railMat = new THREE.MeshStandardMaterial({
-    color: '#c5ced6',
-    roughness: 0.32,
-    metalness: 0.78,
+    color: '#dde4ea',
+    roughness: 0.22,
+    metalness: 0.85,
   });
   const postMat = new THREE.MeshStandardMaterial({
-    color: '#8e98a2',
-    roughness: 0.45,
-    metalness: 0.55,
+    color: '#6a7580',
+    roughness: 0.38,
+    metalness: 0.62,
   });
   const edge = getBarrierEdgeOffset(halfWidth);
-  const step = 4;
+  const step = 3;
 
   for (let i = 0; i < samples.length; i += step) {
     const sample = samples[i];
@@ -233,19 +241,19 @@ function buildArmcoBarriers(samples: ReadonlyArray<TrackSample>, halfWidth: numb
       const px = sample.position.x + sample.normal.x * side * edge;
       const pz = sample.position.z + sample.normal.z * side * edge;
 
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, BARRIER_HEIGHT, 6), postMat);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, BARRIER_HEIGHT, 6), postMat);
       post.position.set(px, BARRIER_HEIGHT * 0.5, pz);
       post.castShadow = true;
       group.add(post);
 
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 2.8), railMat);
-      rail.position.set(px, BARRIER_HEIGHT * 0.72, pz);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 2.1), railMat);
+      rail.position.set(px, BARRIER_HEIGHT * 0.68, pz);
       rail.rotation.y = yaw;
       rail.castShadow = true;
       group.add(rail);
 
       const railLow = rail.clone();
-      railLow.position.y = BARRIER_HEIGHT * 0.38;
+      railLow.position.y = BARRIER_HEIGHT * 0.34;
       group.add(railLow);
     }
   }
@@ -305,30 +313,40 @@ export function buildTrackMeshes(track: GeneratedTrack): TrackMeshes {
   const samples = track.samples;
   const asphaltMap = createAsphaltTexture();
 
+  const elevation = (i: number, sample: TrackSample): number => {
+    const wave = Math.sin(sample.t * Math.PI * 6 + track.seed * 0.001) * 0.35;
+    const hill = Math.sin(sample.t * Math.PI * 2.2) * 0.55;
+    const bump = Math.sin(i * 0.18 + track.seed * 0.01) * 0.12;
+    return wave + hill + bump;
+  };
+
   const asphalt = createRibbonMesh(
     samples,
     halfWidth,
     new THREE.MeshStandardMaterial({
       map: asphaltMap,
-      color: '#e2e6ea',
-      roughness: 0.78,
-      metalness: 0.22,
+      color: '#d8dce2',
+      roughness: 0.72,
+      metalness: 0.18,
       side: THREE.DoubleSide,
     }),
     0.08,
-    40,
+    48,
+    elevation,
   );
 
   const shoulders = createRibbonMesh(
     samples,
     halfWidth + TRACK_SHOULDER_WIDTH,
     new THREE.MeshStandardMaterial({
-      color: '#5fa864',
-      roughness: 0.9,
-      metalness: 0.02,
+      color: '#4a9a52',
+      roughness: 0.88,
+      metalness: 0.03,
       side: THREE.DoubleSide,
     }),
     0.055,
+    1,
+    elevation,
   );
 
   const curbs = buildCurbs(samples, halfWidth);

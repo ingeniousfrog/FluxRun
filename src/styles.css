@@ -1,13 +1,8 @@
 :root {
-  color: #f4f0e5;
-  background: #080d12;
-  font-family:
-    Avenir Next,
-    Avenir,
-    "Segoe UI",
-    sans-serif;
+  color: #f2f4f7;
+  background: #0a0c10;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   font-synthesis: none;
-  text-rendering: geometricPrecision;
 }
 
 * {
@@ -23,276 +18,195 @@ body,
   overflow: hidden;
 }
 
-body {
-  min-width: 320px;
-}
-
 button {
   font: inherit;
+  cursor: pointer;
 }
 
 #app {
   position: relative;
-  background:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 48px),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 48px),
-    #080d12;
+  background: #0a0c10;
 }
 
 #game-canvas {
+  position: absolute;
+  inset: 0;
   display: block;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   outline: none;
   touch-action: none;
+  z-index: 1;
 }
 
-#hud {
+#race-hud {
   position: absolute;
-  inset: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) auto
-    max(14px, env(safe-area-inset-left));
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 14px;
+  inset: 0;
   pointer-events: none;
-  color: #f4f0e5;
-  text-transform: uppercase;
-  letter-spacing: 0;
+  color: #f2f4f7;
+  z-index: 4;
 }
 
-#left-hud {
+html.cockpit-view #dash-hud .dash-card {
+  background: rgba(8, 10, 14, 0.88);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+html.cockpit-view #hud-header .hud-pill {
+  background: rgba(8, 10, 14, 0.88);
+}
+
+#hud-header {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  right: max(16px, env(safe-area-inset-right));
   display: grid;
-  gap: 8px;
-  max-width: calc(100vw - 320px);
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
 }
 
-#primary-hud {
-  display: grid;
-  grid-template-columns: 86px 74px 96px 118px 72px 118px minmax(132px, 188px);
-  gap: 8px;
-  align-items: stretch;
+.hud-pill {
+  min-width: 72px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(8, 10, 14, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
 }
 
-.hud-metric,
-.piece-readout,
-#status-line,
-#guide-strip,
-.hud-action {
-  border: 1px solid rgba(219, 239, 242, 0.2);
-  background: rgba(8, 13, 18, 0.74);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(10px);
-}
-
-.hud-metric {
-  min-height: 48px;
-  padding: 7px 9px;
-}
-
-.hud-metric span,
-.piece-readout span {
+.hud-pill span {
   display: block;
-  color: rgba(244, 240, 229, 0.62);
-  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.58rem;
   font-weight: 700;
+  letter-spacing: 0.14em;
 }
 
-.hud-metric strong,
-.piece-readout strong {
+.hud-pill strong {
   display: block;
-  margin-top: 3px;
-  overflow: hidden;
-  color: #f4f0e5;
-  font-size: 1rem;
-  line-height: 1.05;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.phase-metric strong {
-  color: #42d9ff;
-}
-
-.wide strong {
+  margin-top: 2px;
+  font-size: 1.35rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
-#status-line {
-  min-height: 48px;
-  padding: 9px 11px;
-  border-left: 3px solid #ffbd4a;
-  color: #ffdf89;
-  font-size: 0.78rem;
+.position-pill strong {
+  color: #7ee081;
+}
+
+.lap-pill strong {
+  color: #f0c060;
+}
+
+.hud-track-name {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.82rem;
   font-weight: 800;
-  line-height: 1.15;
+  letter-spacing: 0.16em;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 
-#route-tradeoff,
-#meta-strip {
-  font-size: 0.68rem;
+.hud-toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 188px);
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(8, 10, 14, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f7f0c8;
+  font-size: 0.82rem;
+  font-weight: 700;
   letter-spacing: 0.04em;
-  opacity: 0.92;
-}
-
-#route-tradeoff {
-  min-height: 34px;
-  padding: 7px 11px;
-  border: 1px solid rgba(219, 239, 242, 0.2);
-  background: rgba(8, 13, 18, 0.74);
-  color: #9cf15f;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-#meta-strip {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding: 4px 2px;
-}
-
-#meta-strip strong {
-  color: #9cf15f;
-}
-
-#guide-strip {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 4px;
-  align-items: start;
-  min-height: 42px;
-  padding: 8px 11px;
-  border-left: 3px solid #42d9ff;
-}
-
-#sector-label {
-  color: #ffbd4a;
-  font-size: 0.68rem;
-  white-space: nowrap;
-}
-
-#narrative-line {
-  color: rgba(156, 241, 95, 0.82);
-  font-size: 0.66rem;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-#guide-strip strong {
-  color: #42d9ff;
-  font-size: 0.78rem;
-  white-space: nowrap;
-}
-
-#guide-strip span {
-  color: rgba(244, 240, 229, 0.78);
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-#side-hud {
-  display: grid;
-  grid-template-columns: 190px;
-  gap: 8px;
-  justify-items: stretch;
-  pointer-events: auto;
-}
-
-.piece-readout {
-  min-height: 50px;
-  padding: 8px 10px;
-}
-
-#piece-value {
-  color: #9cf15f;
-}
-
-#piece-help {
-  display: block;
-  margin-top: 4px;
-  overflow: visible;
-  color: rgba(244, 240, 229, 0.62);
-  font-size: 0.62rem;
-  font-weight: 800;
-  line-height: 1.15;
-  white-space: normal;
-}
-
-.hud-action {
-  min-height: 38px;
-  color: #080d12;
-  background: #42d9ff;
-  font-size: 0.72rem;
-  font-weight: 900;
-  cursor: pointer;
-  pointer-events: auto;
-}
-
-.hud-action.secondary {
-  color: #f4f0e5;
-  background: rgba(255, 189, 74, 0.16);
-}
-
-.hud-action:focus-visible,
-#touch-controls button:focus-visible {
-  outline: 2px solid #f4f0e5;
-  outline-offset: 2px;
+  text-align: center;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
 }
 
 #dash-hud {
   position: absolute;
-  left: max(14px, env(safe-area-inset-left));
-  right: max(14px, env(safe-area-inset-right));
-  bottom: max(14px, env(safe-area-inset-bottom));
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 12px;
-  pointer-events: none;
-  z-index: 2;
+  left: max(16px, env(safe-area-inset-left));
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: end;
+  gap: 14px;
 }
 
-.dash-panel {
-  position: relative;
-  border: 1px solid rgba(66, 217, 255, 0.32);
-  border-radius: 12px;
-  background: rgba(8, 13, 18, 0.78);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(10px);
-}
-
-.dash-label {
-  position: absolute;
-  top: 6px;
-  left: 10px;
-  color: rgba(244, 240, 229, 0.55);
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+.dash-card {
+  border-radius: 14px;
+  background: rgba(8, 10, 14, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(12px);
 }
 
 #minimap-panel {
-  padding: 22px 10px 10px;
+  padding: 8px;
 }
 
 #minimap {
   display: block;
-  width: 168px;
-  height: 168px;
-  border-radius: 8px;
+  width: 156px;
+  height: 156px;
+  border-radius: 10px;
+}
+
+#hud-center-stats {
+  display: flex;
+  justify-content: center;
+  align-items: end;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 6px;
+}
+
+.stat-chip {
+  min-width: 88px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(8, 10, 14, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+}
+
+.stat-chip span {
+  display: block;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.stat-chip strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-chip.wide strong {
+  font-size: 1.05rem;
+  color: #f0c060;
 }
 
 #speedometer-panel {
-  width: 168px;
-  padding: 22px 10px 10px;
+  position: relative;
+  width: 156px;
+  padding: 8px 8px 12px;
 }
 
 #speedometer {
-  position: relative;
-  width: 148px;
-  height: 148px;
+  width: 140px;
+  height: 140px;
   margin: 0 auto;
 }
 
@@ -302,29 +216,36 @@ button {
   display: block;
 }
 
-#spd-readout {
+.speed-digital {
   position: absolute;
   left: 50%;
-  bottom: 18px;
+  bottom: 16px;
   transform: translateX(-50%);
-  text-align: center;
-  color: #f4f0e5;
-  line-height: 1;
-}
-
-#spd-readout strong {
-  display: block;
-  font-size: 1.35rem;
-  font-variant-numeric: tabular-nums;
-}
-
-#spd-readout span {
-  display: block;
-  margin-top: 2px;
-  color: rgba(244, 240, 229, 0.55);
-  font-size: 0.55rem;
+  color: #fff;
+  font-size: 1.5rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+#spd-readout {
+  display: none;
+}
+
+.hud-icon-btn {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  pointer-events: auto;
+  min-width: 52px;
+  min-height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(8, 10, 14, 0.72);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
 
 #touch-controls {
@@ -337,15 +258,16 @@ button {
   gap: 12px;
   align-items: end;
   pointer-events: none;
+  z-index: 5;
 }
 
 #touch-stick {
   position: relative;
   width: clamp(96px, 24vw, 132px);
   aspect-ratio: 1;
-  border: 1px solid rgba(219, 239, 242, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 50%;
-  background: rgba(8, 13, 18, 0.62);
+  background: rgba(8, 10, 14, 0.55);
   pointer-events: auto;
   touch-action: none;
 }
@@ -357,242 +279,197 @@ button {
   width: 42%;
   aspect-ratio: 1;
   border-radius: 50%;
-  background: #ffbd4a;
-  box-shadow: 0 0 24px rgba(255, 189, 74, 0.42);
+  background: rgba(255, 255, 255, 0.88);
   transform: translate(-50%, -50%);
 }
 
 #touch-actions {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(48px, 1fr));
+  display: flex;
   gap: 8px;
   justify-self: center;
-  width: min(470px, 64vw);
   pointer-events: auto;
 }
 
 #touch-controls button {
-  min-height: 46px;
-  border: 1px solid rgba(219, 239, 242, 0.28);
-  border-radius: 6px;
-  color: #f4f0e5;
-  background: rgba(8, 13, 18, 0.72);
-  font-size: 0.72rem;
-  font-weight: 900;
-  touch-action: none;
+  min-height: 42px;
+  min-width: 56px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(8, 10, 14, 0.72);
+  font-size: 0.68rem;
+  font-weight: 800;
 }
 
 #boost-button {
   width: clamp(72px, 18vw, 96px);
   aspect-ratio: 1;
   border-radius: 50% !important;
-  color: #080d12 !important;
-  background: #9cf15f !important;
+  color: #0a0c10 !important;
+  background: #7ee081 !important;
   pointer-events: auto;
 }
 
+#race-start-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  background: radial-gradient(circle at center, rgba(8, 10, 14, 0.2), rgba(8, 10, 14, 0.82));
+  z-index: 20;
+}
+
+#race-start-overlay.hidden {
+  display: none;
+  pointer-events: none;
+}
+
+#ready-panel {
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  min-width: min(380px, calc(100vw - 40px));
+  padding: 32px 36px 28px;
+  border-radius: 20px;
+  background: rgba(10, 12, 16, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+  text-align: center;
+}
+
+#ready-panel.hidden {
+  display: none;
+}
+
+.ready-kicker {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+#ready-title {
+  margin: 0;
+  font-size: clamp(2.2rem, 7vw, 3.2rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+#ready-track-name {
+  margin: 0;
+  color: #7ee081;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+#go-button {
+  min-width: 180px;
+  min-height: 54px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #8ef492, #4db352);
+  color: #0a1208;
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.24em;
+  box-shadow: 0 12px 32px rgba(77, 179, 82, 0.35);
+}
+
+.ready-hint {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+#lights-panel {
+  display: flex;
+  gap: 20px;
+  padding: 20px 32px;
+  border-radius: 16px;
+  background: rgba(8, 10, 14, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#lights-panel.hidden {
+  display: none;
+}
+
+.start-light {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #241012;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.start-light.red.on {
+  background: radial-gradient(circle at 35% 30%, #ff8a8a, #e02020 58%, #7a0d0d);
+  box-shadow: 0 0 28px rgba(255, 60, 60, 0.7);
+}
+
+.start-light.yellow.on {
+  background: radial-gradient(circle at 35% 30%, #ffe08a, #e0a020 58%, #7a5a0d);
+  box-shadow: 0 0 28px rgba(255, 200, 60, 0.7);
+}
+
+.start-light.go {
+  background: radial-gradient(circle at 35% 30%, #b8ff8a, #4ae020 58%, #1d7a0d);
+  box-shadow: 0 0 32px rgba(92, 241, 95, 0.8);
+}
+
+#countdown-digit {
+  position: absolute;
+  top: calc(50% + 80px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(2.6rem, 9vw, 4.5rem);
+  font-weight: 900;
+  text-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+
+#countdown-digit.hidden {
+  display: none;
+}
+
+#countdown-digit.go-text {
+  color: #7ee081;
+}
+
 @media (pointer: coarse), (max-width: 860px) {
-  #hud {
-    inset: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) auto
-      max(10px, env(safe-area-inset-left));
-    display: grid;
-    gap: 8px;
-  }
-
-  #left-hud {
-    max-width: none;
-  }
-
-  #primary-hud {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    max-width: none;
-    gap: 6px;
-  }
-
-  .hud-metric {
-    min-height: 34px;
-    padding: 5px 6px;
-  }
-
-  .hud-metric span,
-  .piece-readout span {
-    font-size: 0.5rem;
-  }
-
-  .hud-metric strong {
-    font-size: 0.78rem;
-  }
-
-  #status-line {
-    grid-column: 1 / -1;
-    min-height: 32px;
-    padding: 7px 9px;
-    font-size: 0.62rem;
-  }
-
-  #guide-strip {
-    grid-template-columns: 1fr;
-    gap: 3px;
-    min-height: 40px;
-    padding: 6px 8px;
-    max-width: calc(100vw - 20px);
-    overflow: hidden;
-  }
-
-  #guide-strip strong {
-    font-size: 0.62rem;
-  }
-
-  #guide-strip span {
-    font-size: 0.56rem;
-    overflow-wrap: anywhere;
-  }
-
-  #side-hud {
-    grid-template-columns: minmax(0, 1fr) 72px 82px;
-    align-items: start;
-  }
-
-  .piece-readout {
-    min-width: 0;
-    min-height: 40px;
-    padding: 6px 7px;
-  }
-
-  #piece-value {
-    font-size: 0.78rem;
-  }
-
-  #piece-help {
-    margin-top: 2px;
-    font-size: 0.5rem;
-  }
-
-  #mute-action {
-    display: none;
-  }
-
-  .hud-action {
-    width: 72px;
-    min-height: 40px;
-    font-size: 0.62rem;
-  }
-
-  .hud-action.secondary {
-    width: 82px;
-  }
-
   #touch-controls {
     display: grid;
   }
 
   #dash-hud {
-    bottom: max(108px, calc(env(safe-area-inset-bottom) + 92px));
+    bottom: max(108px, calc(env(safe-area-inset-bottom) + 96px));
   }
 
-  #minimap-panel,
-  #speedometer-panel {
-    transform: scale(0.88);
-    transform-origin: bottom center;
+  #hud-center-stats {
+    display: none;
+  }
+
+  .hud-toast {
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 196px);
+    font-size: 0.72rem;
   }
 }
 
 @media (max-width: 520px) {
-  #primary-hud {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .hud-pill strong {
+    font-size: 1.1rem;
   }
 
-  #primary-hud .hud-metric:nth-child(5),
-  #primary-hud .hud-metric:nth-child(6),
-  #status-line {
-    display: none;
-  }
-
-  .hud-metric {
-    min-height: 30px;
-    padding: 4px 5px;
-  }
-
-  .hud-metric span,
-  .piece-readout span {
-    font-size: 0.42rem;
-  }
-
-  .hud-metric strong,
-  #piece-value {
-    font-size: 0.66rem;
-  }
-
-  #guide-strip {
-    min-height: 30px;
-    padding: 5px 7px;
-  }
-
-  #guide-strip span,
-  #piece-help {
-    display: none;
-  }
-
-  #side-hud {
-    grid-template-columns: minmax(0, 1fr) 68px 76px;
-  }
-
-  .piece-readout {
-    min-height: 34px;
-    padding: 5px 6px;
-  }
-
-  .hud-action {
-    min-height: 34px;
-    font-size: 0.54rem;
-  }
-
-  #touch-controls {
-    grid-template-columns: auto auto;
-    gap: 8px;
-  }
-
-  #touch-actions {
-    grid-column: 1 / -1;
-    grid-row: 1;
-    grid-template-columns: repeat(3, minmax(64px, 1fr));
-    width: min(376px, calc(100vw - 32px));
-  }
-
-  #touch-controls button {
-    min-height: 38px;
-    font-size: 0.62rem;
-  }
-
-  #touch-stick {
-    grid-column: 1;
-    grid-row: 2;
-    width: clamp(82px, 22vw, 104px);
-  }
-
-  #boost-button {
-    grid-column: 2;
-    grid-row: 2;
-    justify-self: end;
-    width: clamp(76px, 21vw, 98px);
-  }
-
-  #dash-hud {
-    bottom: max(118px, calc(env(safe-area-inset-bottom) + 102px));
+  .hud-track-name {
+    font-size: 0.68rem;
   }
 
   #minimap,
   #speedometer-panel {
-    width: 140px;
-  }
-
-  #minimap {
-    width: 140px;
-    height: 140px;
-  }
-
-  #speedometer {
-    width: 124px;
-    height: 124px;
+    transform: scale(0.9);
+    transform-origin: bottom center;
   }
 }

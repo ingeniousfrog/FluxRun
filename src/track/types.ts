@@ -37,4 +37,4 @@ export type GeneratedTrack = {
   readonly difficulty: number;
 };
 
-export type RacePhase = 'countdown' | 'race' | 'finished' | 'paused';
+export type RacePhase = 'ready' | 'countdown' | 'race' | 'finished' | 'paused';

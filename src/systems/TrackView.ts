@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { disposeObjectTree } from '../assets/disposeObjectTree';
 import { createTrackCurve } from '../track/TrackGenerator';
 import { buildTrackMeshes } from '../track/TrackMeshBuilder';
 import type { GeneratedTrack } from '../track/types';
@@ -24,6 +25,10 @@ export class TrackView {
 
   getTrack(): GeneratedTrack {
     return this.track;
+  }
+
+  dispose(): void {
+    disposeObjectTree(this.root);
   }
 
   private buildStartGate(halfWidth: number): void {
